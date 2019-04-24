@@ -5,23 +5,19 @@
 #include <iostream>
 #include <stdlib.h>
 #include <time.h>
+#include <vector>
 #include <set>
 #include <math.h>
+#include "Parse/Parse.h"
 
 #include <cuda.h>
-#include <curand.h>
-#include <curand_kernel.h>
 
-#define DIM 1000
-#define TAU 0.0
+#define TAU 10e-12
 #define ALPHA 0.85
 
 #define num_type double
 
 using namespace std;
-
-// TODO: per dangling nodes => gestiti a parte come contributo costante.
-// TODO: vedere se ci sono algoritmi su sklearn per generazione di csc M
 
 template<typename T>
 void generate_sparse_matrix(T *matrix, const unsigned int DIMV, const unsigned int min_sparse) {
@@ -46,34 +42,6 @@ void generate_sparse_matrix(T *matrix, const unsigned int DIMV, const unsigned i
 
     }
 }
-
-
-//TODO: Implement generate_sparse_matrix in CUDA
-template <typename T>
-__global__
-void d_generate_sparse_matrix(T *matrix, const unsigned DIMV, const unsigned min_sparse){
-
-    int init = blockIdx.x * blockDim.x + threadIdx.x;
-    int stride = blockDim.x * gridDim.x;
-
-    if(init < DIMV){
-
-        for (int i = init; i < DIMV; i += stride) {
-
-
-            //TODO: here
-
-
-            // int num_zeroes = rand() % (DIMV - min_sparse) + min_sparse;
-            std::set<int> zero_idxs;
-
-        }
-
-    }
-
-}
-
-
 
 template <typename T>
 void fill_spm(T *matrix, const unsigned int DIMV){
@@ -123,6 +91,14 @@ void to_csc(T *csc_val, int *csc_non_zero, int *csc_col_idx, T* src, const unsig
     }
 
     cout << "Bella" << endl;
+
+}
+template <typename T>
+void to_device_csc(T *csc_val, int *csc_non_zero, int *csc_col_idx, csc_t src){
+
+    cudaMemcpy(csc_val, &src.val[0], sizeof(T) * src.val.size(), cudaMemcpyHostToDevice);
+    cudaMemcpy(csc_non_zero, &src.non_zero[0], sizeof(int) * src.non_zero.size(), cudaMemcpyHostToDevice);
+    cudaMemcpy(csc_col_idx, &src.col_idx[0], sizeof(int) * src.col_idx.size(), cudaMemcpyHostToDevice);
 
 }
 
@@ -245,9 +221,6 @@ int main(){
     num_type *csc_val;
     int      *csc_non_zero;
     int      *csc_col_idx;
-/*
-    curandGenerator_t gen;
-*/
 
 
     /**
@@ -260,40 +233,41 @@ int main(){
     int      *d_csc_non_zero;
     int      *d_csc_col_idx;
 
+    /**
+     * TEST
+     */
+    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur");
+
+    const unsigned NON_ZERO = csc_matrix.val.size();
+    const unsigned DIM = csc_matrix.non_zero.size() - 1;
+
+    std::cout << "DIMENSIONS: " << std::endl;
+    std::cout << "Number of non zero elements: " << NON_ZERO << std::endl;
+    std::cout << "Number of nodes: " << DIM << std::endl;
+    std::cout << "Sparseness: " << (1 - (((double) NON_ZERO) / (DIM * DIM))) * 100 << "%" << std::endl;
+
     cudaMallocHost(&matrix, sizeof(num_type) * DIM * DIM);
     cudaMallocHost(&matrix_t, sizeof(num_type) * DIM * DIM);
     cudaMallocHost(&pr, sizeof(num_type) * DIM);
     cudaMallocHost(&spmv_res, sizeof(num_type) * DIM);
     cudaMallocHost(&error, sizeof(num_type) * DIM);
 
-    // Generate sparse matrix and traspose it
-    generate_sparse_matrix(matrix, DIM, DIM * 3 / 4);
-    // d_generate_sparse_matrix<<<1, 1>>>(matrix, DIM, DIM - 1);
-    transpose(matrix_t, matrix, DIM);
-    fill_spm(matrix_t, DIM);
 
-    // Allocate vector for csc matrix
-    int non_zero = count_non_zero(matrix_t, DIM);
-
-    cudaMallocHost(&csc_val, sizeof(num_type) * non_zero);
-    cudaMallocHost(&csc_non_zero, sizeof(int) * (DIM + 1));
-    cudaMallocHost(&csc_col_idx, sizeof(int) * non_zero);
-
-    // Create CSC Matrix
-    to_csc(csc_val, csc_non_zero, csc_col_idx, matrix_t, DIM, non_zero);
+    std::cout << "Initializing device memory" << std::endl;
 
     // Create device memory
-    cudaMalloc(&d_csc_val, sizeof(num_type) * non_zero);
+    cudaMalloc(&d_csc_val, sizeof(num_type) * NON_ZERO);
     cudaMalloc(&d_csc_non_zero, sizeof(int) * (DIM + 1));
-    cudaMalloc(&d_csc_col_idx, sizeof(num_type) * non_zero);
+    cudaMalloc(&d_csc_col_idx, sizeof(num_type) * NON_ZERO);
     cudaMalloc(&d_pr, sizeof(num_type) * DIM);
     cudaMalloc(&d_error, sizeof(num_type) * DIM);
     cudaMalloc(&d_spmv_res, sizeof(num_type) * DIM);
 
-    // Copy from host to device
-    cudaMemcpy(d_csc_val, csc_val, sizeof(num_type) * non_zero, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_csc_non_zero, csc_non_zero, sizeof(int) * (DIM + 1), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_csc_col_idx, csc_col_idx, sizeof(int) * non_zero, cudaMemcpyHostToDevice);
+    std::cout << "Parsing csc files" << std::endl;
+
+    to_device_csc(d_csc_val, d_csc_non_zero, d_csc_col_idx, csc_matrix);
+
+    std::cout << "Initializing error vector and pr vector" << std::endl;
 
     // Initialize error and pr vector
     d_set_val<<<1, 256>>>(d_pr, 1.0 / DIM, DIM);
@@ -317,14 +291,21 @@ int main(){
 
         cudaMemcpy(error, d_error, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
         cudaMemcpy(d_pr, d_spmv_res, DIM * sizeof(num_type), cudaMemcpyDeviceToDevice);
-        /*double sum = 0.0;
+
+/*
+        double sum = 0.0;
         for (int i = 0; i < DIM; ++i) {
-            //sum += spmv_res[i];
-            cout << error[i] << endl;
-        }*/
-        //cout << sum << endl;
+            sum += spmv_res[i];
+            //cout << error[i] << endl;
+        }
+        std::cout << sum << std::endl;
+*/
+
 
         iterations++;
+
+        std::cout << iterations << std::endl;
+
     }
 
     cout << "converged after n_iter: " << iterations << endl;
