@@ -3,16 +3,20 @@
 //
 
 #include <iostream>
+#include <map>
 #include <stdlib.h>
 #include <time.h>
 #include <vector>
+#include <fstream>
 #include <set>
 #include <math.h>
+#include <algorithm>
+
 #include "Parse/Parse.h"
 
 #include <cuda.h>
 
-#define TAU 10e-12
+#define TAU 10e-6
 #define ALPHA 0.85
 
 #define num_type double
@@ -94,7 +98,7 @@ void to_csc(T *csc_val, int *csc_non_zero, int *csc_col_idx, T* src, const unsig
 
 }
 template <typename T>
-void to_device_csc(T *csc_val, int *csc_non_zero, int *csc_col_idx, csc_t src){
+void to_device_csc(T *csc_val, int *csc_non_zero, int *csc_col_idx, const csc_t src){
 
     cudaMemcpy(csc_val, &src.val[0], sizeof(T) * src.val.size(), cudaMemcpyHostToDevice);
     cudaMemcpy(csc_non_zero, &src.non_zero[0], sizeof(int) * src.non_zero.size(), cudaMemcpyHostToDevice);
@@ -292,55 +296,51 @@ int main(){
         cudaMemcpy(error, d_error, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
         cudaMemcpy(d_pr, d_spmv_res, DIM * sizeof(num_type), cudaMemcpyDeviceToDevice);
 
-/*
-        double sum = 0.0;
-        for (int i = 0; i < DIM; ++i) {
-            sum += spmv_res[i];
-            //cout << error[i] << endl;
-        }
-        std::cout << sum << std::endl;
-*/
-
-
         iterations++;
 
-        std::cout << iterations << std::endl;
+        // std::cout << iterations << std::endl;
 
     }
 
-    cout << "converged after n_iter: " << iterations << endl;
+    cudaMemcpy(pr, d_pr,  DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
 
-    /*d_set_val<<<1, 256>>>(d_csc_val, 22.0, non_zero);
 
-    cudaMemcpy(csc_val, d_csc_val, sizeof(num_type) * non_zero, cudaMemcpyDeviceToHost);
+    std::cout << "converged after n_iter: " << iterations << std::endl;
 
-    cout << "VAL" << endl;
-    for (int i = 0; i < non_zero; ++i) {
-        cout << csc_val[i] << endl;
-    }*/
-/*
-    cout << "NON_ZERO" << endl;
-    for (int i = 0; i < DIM + 1; ++i) {
-        cout << csc_non_zero[i] << endl;
+
+    std::map <int, num_type> pr_map;
+    std::vector<std::pair<int, num_type>> sorted_pr;
+    std::vector<int> sorted_pr_idxs;
+
+    for (int i = 0; i < DIM; ++i) {
+        sorted_pr.push_back({i, pr[i]});
+        //std::cout << "Index: " << i << " => " << pr_map[i] << std::endl;
     }
 
-    cout << "COL_IDX" << endl;
-    for (int i = 0; i < non_zero; ++i) {
-        cout << csc_col_idx[i] << endl;
+    std::sort(sorted_pr.begin(), sorted_pr.end(),
+              [](const pair<int, num_type>& l, const pair<int, num_type>& r) {
+                  return l.second > r.second;
+              });
+
+    // print the vector
+    for (auto const &pair: sorted_pr) {
+        sorted_pr_idxs.push_back(pair.first);
     }
 
-   cout << "NORMAL" << endl;
+    std::cout << "Checking results..." << std::endl;
 
-   for (int i = 0; i < DIM * DIM; ++i) {
-       cout << matrix[i] << endl;
-   }
+    std::ifstream results;
+    results.open("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur/results.txt");
 
-   cout << "TRANSPOSEDs" << endl;
+    int i = 0;
+    int tmp = 0;
 
-   for (int i = 0; i < DIM * DIM; ++i) {
-       cout << matrix_t[i] << endl;
-   }
-*/
+    while(results >> tmp){
+        if(tmp != sorted_pr_idxs[i]){
+            std::cout << "ERROR " << tmp << " != " << sorted_pr_idxs[i] << std::endl;
+        }
+        i++;
+    }
 
 
     cudaFree(&matrix);

@@ -16,5 +16,4 @@ typedef struct csc_t {
     std::vector<int> col_idx;
 } csc_t;
 
-
 csc_t parse_dir(std::string dir_path);

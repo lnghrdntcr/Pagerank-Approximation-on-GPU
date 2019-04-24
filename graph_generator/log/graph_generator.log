@@ -1,0 +1,13 @@
+DIM = 30000
+PERC_SPARSE = 99.9%
+Generating graph...
+1556138220.867086: Computing pagerank... alpha=0.85, max_iter=200, tol=10**-6 DONE [7.855483531951904s]
+1556138228.7230172: Sorting and dumping pr values... DONE [0.03992319107055664s]
+1556138228.76316: Converting matrix to numpy array... DONE [4.150943994522095s]
+1556138232.9143608: Formatting matrix in stochastic form... DONE [1773.0721969604492s]
+1556140005.986852: Converting matrix in csc DONE [5.398493051528931s]
+Dumping matrices: 
+Formatting generated_csc/cur/val.txt
+Formatting generated_csc/cur/col_idx.txt
+Formatting generated_csc/cur/non_zero.txt
+DONE [1.8606045246124268s]
