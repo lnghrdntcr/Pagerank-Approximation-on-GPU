@@ -1,0 +1,35 @@
+Parsing /home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/test
+DIMENSIONS: 
+Number of non zero elements: 999748
+Number of nodes: 10000
+Sparseness: 99.0003%
+==18191== NVPROF is profiling process 18191, command: ./Approximate_PR
+Initializing device memory
+Parsing csc files
+Initializing error vector and pr vector
+converged after n_iter: 27
+Checking results...
+==18191== Profiling application: ./Approximate_PR
+==18191== Profiling result:
+            Type  Time(%)      Time     Calls       Avg       Min       Max  Name
+ GPU activities:   79.46%  13.963ms        27  517.15us  514.76us  524.48us  void spmv<double>(double*, double*, double*, int*, int*, unsigned int)
+                    7.18%  1.2612ms         3  420.40us  4.5120us  915.62us  [CUDA memcpy HtoD]
+                    3.91%  687.88us        27  25.476us  25.057us  25.889us  void scale<double>(double*, double, unsigned int)
+                    3.91%  687.46us        27  25.461us  25.024us  25.888us  void compute_error<double>(double*, double*, double*, unsigned int)
+                    3.90%  684.90us        27  25.366us  24.928us  25.824us  void shift<double>(double*, double, unsigned int)
+                    1.13%  199.30us        30  6.6430us  6.5600us  6.9450us  [CUDA memcpy DtoH]
+                    0.29%  51.009us         2  25.504us  24.961us  26.048us  void d_set_val<double>(double*, double, unsigned int)
+                    0.22%  37.953us        27  1.4050us  1.3760us  1.7920us  [CUDA memcpy DtoD]
+      API calls:   96.34%  516.45ms         5  103.29ms  6.3140us  319.66ms  cudaHostAlloc
+                    2.96%  15.871ms        27  587.80us  573.28us  613.88us  cudaDeviceSynchronize
+                    0.44%  2.3363ms        60  38.938us  6.4990us  975.81us  cudaMemcpy
+                    0.09%  503.41us       110  4.5760us  3.5000us  26.219us  cudaLaunchKernel
+                    0.07%  386.93us         6  64.488us  4.8420us  162.06us  cudaMalloc
+                    0.05%  262.46us        97  2.7050us     113ns  116.70us  cuDeviceGetAttribute
+                    0.03%  158.45us         1  158.45us  158.45us  158.45us  cuDeviceTotalMem
+                    0.01%  61.897us         1  61.897us  61.897us  61.897us  cuDeviceGetName
+                    0.00%  9.5670us        14     683ns     404ns  4.1910us  cudaFree
+                    0.00%  2.4640us         1  2.4640us  2.4640us  2.4640us  cuDeviceGetPCIBusId
+                    0.00%  1.7660us         3     588ns     110ns     915ns  cuDeviceGetCount
+                    0.00%     821ns         2     410ns     230ns     591ns  cuDeviceGet
+                    0.00%     201ns         1     201ns     201ns     201ns  cuDeviceGetUuid

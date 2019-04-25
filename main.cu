@@ -11,13 +11,23 @@
 #include <set>
 #include <math.h>
 #include <algorithm>
-
 #include "Parse/Parse.h"
 
-#include <cuda.h>
+#include <thrust/device_vector.h>
+#include <thrust/functional.h>
+#include <thrust/transform.h>
+#include <thrust/inner_product.h>
+#include <thrust/functional.h>
+#include <thrust/iterator/zip_iterator.h>
+#include <thrust/sort.h>
 
-#define TAU 10e-6
+#define TAU 1e-15
 #define ALPHA 0.85
+
+#define MAX_B 1024
+#define MAX_T 1024
+
+#define MAX_ITER 200
 
 #define num_type double
 
@@ -211,6 +221,31 @@ void compute_error(T *error, T *next, T *prev, const unsigned DIMV){
 
 }
 
+__global__
+void d_set_dangling_bitmap(bool *dangling_bitmap, int *csc_non_zero, const unsigned DIMV){
+
+    int init = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+
+    if (init < DIMV){
+        for (int i = init; i < DIMV; i += stride) {
+            dangling_bitmap[csc_non_zero[i]] = 0;
+        }
+    }
+
+}
+
+// Tnx parra
+template <typename T1, typename T2>
+T2 dot(size_t n, T1 *x, T2 *y){
+    T2 result = thrust::inner_product(
+            thrust::device_pointer_cast(x),
+            thrust::device_pointer_cast(x + n),
+            thrust::device_pointer_cast(y),
+            0.0f);
+    return result;
+}
+
 int main(){
 
 
@@ -236,19 +271,17 @@ int main(){
     num_type *d_csc_val;
     int      *d_csc_non_zero;
     int      *d_csc_col_idx;
+    bool     *d_dangling_bitmap;
 
-    /**
-     * TEST
-     */
-    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur");
+    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/test");
 
     const unsigned NON_ZERO = csc_matrix.val.size();
     const unsigned DIM = csc_matrix.non_zero.size() - 1;
 
-    std::cout << "DIMENSIONS: " << std::endl;
-    std::cout << "Number of non zero elements: " << NON_ZERO << std::endl;
-    std::cout << "Number of nodes: " << DIM << std::endl;
-    std::cout << "Sparseness: " << (1 - (((double) NON_ZERO) / (DIM * DIM))) * 100 << "%" << std::endl;
+    std::cout << "\nFEATURES: " << std::endl;
+    std::cout << "\tNumber of non zero elements: " << NON_ZERO << std::endl;
+    std::cout << "\tNumber of nodes: " << DIM << std::endl;
+    std::cout << "\tSparseness: " << (1 - (((double) NON_ZERO) / (DIM * DIM))) * 100 << "%\n" << std::endl;
 
     cudaMallocHost(&matrix, sizeof(num_type) * DIM * DIM);
     cudaMallocHost(&matrix_t, sizeof(num_type) * DIM * DIM);
@@ -266,30 +299,45 @@ int main(){
     cudaMalloc(&d_pr, sizeof(num_type) * DIM);
     cudaMalloc(&d_error, sizeof(num_type) * DIM);
     cudaMalloc(&d_spmv_res, sizeof(num_type) * DIM);
+    cudaMalloc(&d_dangling_bitmap, DIM * sizeof(bool));
 
     std::cout << "Parsing csc files" << std::endl;
 
     to_device_csc(d_csc_val, d_csc_non_zero, d_csc_col_idx, csc_matrix);
 
-    std::cout << "Initializing error vector and pr vector" << std::endl;
+    std::cout << "Initializing pr, error, dangling bitmap error" << std::endl;
 
     // Initialize error and pr vector
-    d_set_val<<<1, 256>>>(d_pr, 1.0 / DIM, DIM);
-    d_set_val<<<1, 256>>>(d_error, 1.0, DIM);
+    d_set_val<<<MAX_B, MAX_T>>>(d_pr, 1.0 / DIM, DIM);
+    d_set_val<<<MAX_B, MAX_T>>>(d_error, 1.0, DIM);
+    d_set_val<<<MAX_B, MAX_T>>>(d_dangling_bitmap, true, DIM);
+    d_set_dangling_bitmap<<<MAX_B, MAX_T>>>(d_dangling_bitmap, d_csc_non_zero, DIM);
 
     // Copy them back to their host vectors
     cudaMemcpy(pr, d_pr,  DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
     cudaMemcpy(error, d_error, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
 
+
+    /**
+    * TEST
+    */
+
+    std::cout << "Beginning pagerank..." << std::endl;
+
     int iterations = 0;
-    while(!check_error(error, TAU, DIM)){
+    while(!check_error(error, TAU, DIM) && iterations < MAX_ITER){
 
         // TODO: andare a guardare quali sono i valori ottimali sulla gpu
-        spmv<<<256, 256>>>(d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
-        scale<<<256, 256>>>(d_spmv_res, ALPHA, DIM);
-        shift<<<256, 256>>>(d_spmv_res, (1.0 - ALPHA) / DIM, DIM);
+        spmv<<<MAX_B, MAX_T>>>(d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
+        scale<<<MAX_B, MAX_T>>>(d_spmv_res, ALPHA, DIM);
 
-        compute_error<<<256, 256>>>(d_error, d_spmv_res, d_pr, DIM);
+        num_type res_v = dot(DIM, d_dangling_bitmap, d_pr);
+
+        // std::cout << res_v << std::endl;
+
+        shift<<<MAX_B, MAX_T>>>(d_spmv_res, (1.0 - ALPHA) / DIM + (ALPHA / DIM) * /*res_v*/ 0.0, DIM);
+
+        compute_error<<<MAX_B, MAX_T>>>(d_error, d_spmv_res, d_pr, DIM);
 
         cudaDeviceSynchronize();
 
@@ -297,9 +345,6 @@ int main(){
         cudaMemcpy(d_pr, d_spmv_res, DIM * sizeof(num_type), cudaMemcpyDeviceToDevice);
 
         iterations++;
-
-        // std::cout << iterations << std::endl;
-
     }
 
     cudaMemcpy(pr, d_pr,  DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
@@ -314,6 +359,7 @@ int main(){
 
     for (int i = 0; i < DIM; ++i) {
         sorted_pr.push_back({i, pr[i]});
+        pr_map[i] = pr[i];
         //std::cout << "Index: " << i << " => " << pr_map[i] << std::endl;
     }
 
@@ -330,14 +376,14 @@ int main(){
     std::cout << "Checking results..." << std::endl;
 
     std::ifstream results;
-    results.open("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur/results.txt");
+    results.open("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/test/results.txt");
 
     int i = 0;
     int tmp = 0;
 
     while(results >> tmp){
         if(tmp != sorted_pr_idxs[i]){
-            std::cout << "ERROR " << tmp << " != " << sorted_pr_idxs[i] << std::endl;
+            std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => " << (double) pr_map[sorted_pr_idxs[i]] << std::endl;
         }
         i++;
     }

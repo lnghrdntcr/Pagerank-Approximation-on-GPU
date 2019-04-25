@@ -31,7 +31,7 @@ PERC_SPARSE = 0.001
 write_log("PERC_SPARSE = {}".format(str((1 - PERC_SPARSE)*100) + '%'))
 
 write_log("Generating graph...")
-g = nx.fast_gnp_random_graph(DIM, PERC_SPARSE)
+g = nx.fast_gnp_random_graph(DIM, PERC_SPARSE, seed=1, directed=True)
 
 
 write_log("Computing pagerank... alpha=0.85, max_iter=200, tol=10**-6", endl='')
