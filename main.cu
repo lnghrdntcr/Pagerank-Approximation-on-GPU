@@ -2,16 +2,20 @@
 // Created by Francesco Sgherzi on 15/04/19.
 //
 
-#include <iostream>
-#include <map>
 #include <stdlib.h>
-#include <time.h>
-#include <vector>
-#include <fstream>
-#include <set>
 #include <math.h>
+#include <time.h>
+#include <iostream>
+#include <fstream>
+#include <map>
+#include <vector>
 #include <algorithm>
+
+#include <cuda.h>
+#include <cuda_runtime_api.h>
+
 #include "Parse/Parse.h"
+#include "Utils/Utils.h"
 
 #define TAU 0.0
 #define ALPHA 0.85
@@ -23,82 +27,14 @@
 
 #define num_type double
 
-using namespace std;
-
 template<typename T>
-void generate_sparse_matrix(T *matrix, const unsigned int DIMV, const unsigned int min_sparse) {
-
-    // for all rows
+bool check_error(T *e, const T error, const unsigned DIMV) {
     for (int i = 0; i < DIMV; ++i) {
-
-        int num_zeroes = rand() % (DIMV - min_sparse) + min_sparse;
-        std::set<int> zero_idxs;
-
-        zero_idxs.insert(i);
-        for (int j = 0; j < num_zeroes; ++j) {
-            int r_idx = rand() % DIMV;
-            zero_idxs.insert(r_idx);
-        }
-
-        for (int j = 0; j < DIMV; ++j) {
-            if (zero_idxs.find(j) == zero_idxs.end() && (DIMV - zero_idxs.size()) != 0) {
-                matrix[i * DIMV + j] = (T) 1.0 / (DIMV - zero_idxs.size());
-            }
-        }
-
+        if (e[i] > error) return false;
     }
+    return true;
 }
 
-template<typename T>
-void fill_spm(T *matrix, const unsigned int DIMV) {
-    for (int i = 0; i < DIMV; ++i) {
-        int count_zero = 0;
-        for (int j = 0; j < DIMV; ++j) {
-            if (matrix[i * DIMV + j] == 0.0) count_zero++;
-        }
-        if (count_zero == DIMV) matrix[i * DIMV + i] = 1;
-    }
-}
-
-template<typename T>
-void transpose(T *out, T *in, const unsigned DIMV) {
-
-    for (int i = 0; i < DIMV; ++i) {
-        for (int j = 0; j < DIMV; ++j) {
-            out[i * DIMV + j] = in[j * DIMV + i];
-        }
-    }
-
-}
-
-template<typename T>
-void to_csc(T *csc_val, int *csc_non_zero, int *csc_col_idx, T *src, const unsigned DIMV, const unsigned non_zero) {
-
-    unsigned val_idx = 0;
-
-    csc_non_zero[0] = 0;
-
-    for (int i = 0; i < DIMV; ++i) {
-
-        csc_non_zero[i + 1] = csc_non_zero[i];
-
-        for (int j = 0; j < DIMV; ++j) {
-
-            if (src[i * DIMV + j] > 0) {
-                csc_val[val_idx] = src[i * DIMV + j];
-                csc_non_zero[i + 1]++;
-                csc_col_idx[val_idx] = j;
-
-                val_idx++;
-            }
-
-        }
-
-    }
-
-    cout << "Bella" << endl;
-
-}
 
 template<typename T>
 void to_device_csc(T *csc_val, int *csc_non_zero, int *csc_col_idx, const csc_t src) {
@@ -107,17 +43,6 @@ void to_device_csc(T *csc_val, int *csc_non_zero, int *csc_col_idx, const csc_t 
     cudaMemcpy(csc_non_zero, &src.non_zero[0], sizeof(int) * src.non_zero.size(), cudaMemcpyHostToDevice);
     cudaMemcpy(csc_col_idx, &src.col_idx[0], sizeof(int) * src.col_idx.size(), cudaMemcpyHostToDevice);
 
-}
-
-template<typename T>
-unsigned int count_non_zero(T *m, const unsigned int DIMV) {
-    int sum = 0;
-
-    for (int i = 0; i < DIMV * DIMV; ++i) {
-        if (m[i] > 0) sum++;
-    }
-
-    return sum;
 }
 
 template<typename T>
@@ -135,14 +60,6 @@ void d_set_val(T *m, T value, const unsigned DIMV) {
 
     }
 
-}
-
-template<typename T>
-bool check_error(T *e, const T error, const unsigned DIMV) {
-    for (int i = 0; i < DIMV; ++i) {
-        if (e[i] > error) return false;
-    }
-    return true;
 }
 
 template<typename T>
@@ -271,15 +188,8 @@ int main() {
     /**
      * HOST
      */
-    num_type *matrix;
-    num_type *matrix_t;
     num_type *pr;
-    num_type *spmv_res;
     num_type *error;
-    num_type *csc_val;
-    int *csc_non_zero;
-    int *csc_col_idx;
-
 
     /**
      * DEVICE
@@ -302,12 +212,8 @@ int main() {
     std::cout << "\tNumber of nodes: " << DIM << std::endl;
     std::cout << "\tSparseness: " << (1 - (((double) NON_ZERO) / (DIM * DIM))) * 100 << "%\n" << std::endl;
 
-    cudaMallocHost(&matrix, sizeof(num_type) * DIM * DIM);
-    cudaMallocHost(&matrix_t, sizeof(num_type) * DIM * DIM);
     cudaMallocHost(&pr, sizeof(num_type) * DIM);
-    cudaMallocHost(&spmv_res, sizeof(num_type) * DIM);
     cudaMallocHost(&error, sizeof(num_type) * DIM);
-
 
     std::cout << "Initializing device memory" << std::endl;
 
@@ -323,7 +229,7 @@ int main() {
     std::cout << "Parsing csc files" << std::endl;
 
     to_device_csc(d_csc_val, d_csc_non_zero, d_csc_col_idx, csc_matrix);
-
+    
     std::cout << "Initializing pr, error, dangling bitmap vectors" << std::endl;
 
     // Initialize error and pr vector
@@ -427,14 +333,8 @@ int main() {
     }
 
 
-    cudaFree(&matrix);
-    cudaFree(&matrix_t);
     cudaFree(&pr);
-    cudaFree(&spmv_res);
     cudaFree(&error);
-    cudaFree(&csc_val);
-    cudaFree(&csc_non_zero);
-    cudaFree(&csc_col_idx);
 
     cudaFree(&d_pr);
     cudaFree(&d_error);

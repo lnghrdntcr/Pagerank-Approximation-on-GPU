@@ -247,8 +247,6 @@ int np_main() {
     for (auto el: csc) {
         std::cout << el << std::endl;
     }*/
-
-
-
-
+    
+    return 0;
 }

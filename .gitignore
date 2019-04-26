@@ -74,6 +74,14 @@
 # CMake
 cmake-build-*/
 
+build/
+
+# VSCode 
+.vscode/
+
+# IDEA
+.idea/
+
 # Mongo Explorer plugin
 .idea/**/mongoSettings.xml
 
@@ -288,4 +296,6 @@ modules.xml
 # CSC Matrix
 graph_generator/generated_csc/*
 
+# Logs
+graph_generator/log/*
 # End of https://www.gitignore.io/api/c++,cuda,clion,pycharm,intellij,pycharm+all

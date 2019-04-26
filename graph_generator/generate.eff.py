@@ -42,11 +42,11 @@ def format_file(filename, values):
         f.write('{}\n'.format(e))
 
 
-DIM = 100000
+DIM = 200000
 write_log("DIM = {}".format(DIM))
 
 PERC_SPARSE = 0.0002
-write_log("PERC_SPARSE = {}".format(str((1 - PERC_SPARSE)*100) + '%'))
+write_log("PERC_SPARSE = {}% => expecting {} elements per column".format(str((1 - PERC_SPARSE)*100), DIM * PERC_SPARSE))
 
 write_log("Generating graph...")
 g = nx.fast_gnp_random_graph(DIM, PERC_SPARSE, directed=True)
