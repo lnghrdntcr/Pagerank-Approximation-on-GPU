@@ -13,15 +13,7 @@
 #include <algorithm>
 #include "Parse/Parse.h"
 
-#include <thrust/device_vector.h>
-#include <thrust/functional.h>
-#include <thrust/transform.h>
-#include <thrust/inner_product.h>
-#include <thrust/functional.h>
-#include <thrust/iterator/zip_iterator.h>
-#include <thrust/sort.h>
-
-#define TAU 1e-15
+#define TAU 0.0
 #define ALPHA 0.85
 
 #define MAX_B 1024
@@ -57,19 +49,19 @@ void generate_sparse_matrix(T *matrix, const unsigned int DIMV, const unsigned i
     }
 }
 
-template <typename T>
-void fill_spm(T *matrix, const unsigned int DIMV){
+template<typename T>
+void fill_spm(T *matrix, const unsigned int DIMV) {
     for (int i = 0; i < DIMV; ++i) {
         int count_zero = 0;
         for (int j = 0; j < DIMV; ++j) {
-            if(matrix[i * DIMV + j] == 0.0) count_zero++;
+            if (matrix[i * DIMV + j] == 0.0) count_zero++;
         }
-        if(count_zero == DIMV) matrix[i * DIMV + i] = 1;
+        if (count_zero == DIMV) matrix[i * DIMV + i] = 1;
     }
 }
 
-template <typename T>
-void transpose(T *out, T *in, const unsigned DIMV){
+template<typename T>
+void transpose(T *out, T *in, const unsigned DIMV) {
 
     for (int i = 0; i < DIMV; ++i) {
         for (int j = 0; j < DIMV; ++j) {
@@ -79,8 +71,8 @@ void transpose(T *out, T *in, const unsigned DIMV){
 
 }
 
-template <typename T>
-void to_csc(T *csc_val, int *csc_non_zero, int *csc_col_idx, T* src, const unsigned DIMV, const unsigned non_zero){
+template<typename T>
+void to_csc(T *csc_val, int *csc_non_zero, int *csc_col_idx, T *src, const unsigned DIMV, const unsigned non_zero) {
 
     unsigned val_idx = 0;
 
@@ -92,7 +84,7 @@ void to_csc(T *csc_val, int *csc_non_zero, int *csc_col_idx, T* src, const unsig
 
         for (int j = 0; j < DIMV; ++j) {
 
-            if(src[i * DIMV + j] > 0){
+            if (src[i * DIMV + j] > 0) {
                 csc_val[val_idx] = src[i * DIMV + j];
                 csc_non_zero[i + 1]++;
                 csc_col_idx[val_idx] = j;
@@ -107,8 +99,9 @@ void to_csc(T *csc_val, int *csc_non_zero, int *csc_col_idx, T* src, const unsig
     cout << "Bella" << endl;
 
 }
-template <typename T>
-void to_device_csc(T *csc_val, int *csc_non_zero, int *csc_col_idx, const csc_t src){
+
+template<typename T>
+void to_device_csc(T *csc_val, int *csc_non_zero, int *csc_col_idx, const csc_t src) {
 
     cudaMemcpy(csc_val, &src.val[0], sizeof(T) * src.val.size(), cudaMemcpyHostToDevice);
     cudaMemcpy(csc_non_zero, &src.non_zero[0], sizeof(int) * src.non_zero.size(), cudaMemcpyHostToDevice);
@@ -127,14 +120,14 @@ unsigned int count_non_zero(T *m, const unsigned int DIMV) {
     return sum;
 }
 
-template <typename T>
+template<typename T>
 __global__
-void d_set_val( T * m, T value, const unsigned DIMV){
+void d_set_val(T *m, T value, const unsigned DIMV) {
 
     int init = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = blockDim.x * gridDim.x;
 
-    if(init < DIMV){
+    if (init < DIMV) {
 
         for (int i = init; i < DIMV; i += stride) {
             m[i] = value;
@@ -147,27 +140,27 @@ void d_set_val( T * m, T value, const unsigned DIMV){
 template<typename T>
 bool check_error(T *e, const T error, const unsigned DIMV) {
     for (int i = 0; i < DIMV; ++i) {
-        if(e[i] > error) return false;
+        if (e[i] > error) return false;
     }
     return true;
 }
 
-template <typename T>
+template<typename T>
 __global__
-void spmv(T *Y, T *pr, T *csc_val, int *csc_non_zero, int *csc_col_idx, const unsigned DIMV){
+void spmv(T *Y, T *pr, T *csc_val, int *csc_non_zero, int *csc_col_idx, const unsigned DIMV) {
 
     int init = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = blockDim.x * gridDim.x;
 
-    if(init < DIMV){
-        for(int i = init; i < DIMV; i += stride){
+    if (init < DIMV) {
+        for (int i = init; i < DIMV; i += stride) {
 
             int begin = csc_non_zero[i];
-            int end   = csc_non_zero[i + 1];
+            int end = csc_non_zero[i + 1];
 
             T acc = 0.0;
 
-            for(int j = begin; j < end; j++){
+            for (int j = begin; j < end; j++) {
                 acc += csc_val[j] * pr[csc_col_idx[j]];
             }
 
@@ -178,42 +171,42 @@ void spmv(T *Y, T *pr, T *csc_val, int *csc_non_zero, int *csc_col_idx, const un
 
 }
 
-template <typename T>
+template<typename T>
 __global__
-void scale(T *m, T v, const unsigned DIMV){
+void scale(T *m, T v, const unsigned DIMV) {
 
     int init = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = blockDim.x * gridDim.x;
 
-    if(init < DIMV){
+    if (init < DIMV) {
         for (int i = init; i < DIMV; i += stride) {
             m[i] *= v;
         }
     }
 }
 
-template <typename T>
+template<typename T>
 __global__
-void shift(T *m, T v, const unsigned DIMV){
+void shift(T *m, T v, const unsigned DIMV) {
 
     int init = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = blockDim.x * gridDim.x;
 
-    if(init < DIMV){
+    if (init < DIMV) {
         for (int i = init; i < DIMV; i += stride) {
-            m[i] +=v;
+            m[i] += v;
         }
     }
 }
 
-template <typename T>
+template<typename T>
 __global__
-void compute_error(T *error, T *next, T *prev, const unsigned DIMV){
+void compute_error(T *error, T *next, T *prev, const unsigned DIMV) {
 
     int init = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = blockDim.x * gridDim.x;
 
-    if(init < DIMV){
+    if (init < DIMV) {
         for (int i = init; i < DIMV; i += stride) {
             error[i] = abs(next[i] - prev[i]);
         }
@@ -222,21 +215,23 @@ void compute_error(T *error, T *next, T *prev, const unsigned DIMV){
 }
 
 __global__
-void d_set_dangling_bitmap(bool *dangling_bitmap, int *csc_non_zero, const unsigned DIMV){
+void d_set_dangling_bitmap(bool *dangling_bitmap, int *csc_col_idx, const unsigned DIMV) {
 
     int init = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = blockDim.x * gridDim.x;
 
-    if (init < DIMV){
-        for (int i = init; i < DIMV; i += stride) {
-            dangling_bitmap[csc_non_zero[i]] = 0;
-        }
+    for (int i = init; i < DIMV; i += stride) {
+        dangling_bitmap[csc_col_idx[i]] = 0;
     }
 
 }
 
-// Tnx parra
-template <typename T1, typename T2>
+
+/**
+ * Cannot use thrust's implementation of dot product because it goes out of memory
+ * even for 100k pages.
+ */
+/*
 T2 dot(size_t n, T1 *x, T2 *y){
     T2 result = thrust::inner_product(
             thrust::device_pointer_cast(x),
@@ -245,8 +240,32 @@ T2 dot(size_t n, T1 *x, T2 *y){
             0.0f);
     return result;
 }
+*/
 
-int main(){
+template<typename T1, typename T2>
+T2 dot(size_t n, T1 *x, T2 *y) {
+
+    T1 *tempx;
+    T2 *tempy;
+    T2 result = 0.0;
+
+    cudaMallocHost(&tempx, n * sizeof(T1));
+    cudaMallocHost(&tempy, n * sizeof(T2));
+
+    cudaMemcpy(tempx, x, n * sizeof(T1), cudaMemcpyDeviceToHost);
+    cudaMemcpy(tempy, y, n * sizeof(T2), cudaMemcpyDeviceToHost);
+
+    for (int i = 0; i < n; ++i) {
+
+        result += tempx[i] * tempy[i];
+
+    }
+
+    return result;
+
+}
+
+int main() {
 
 
     /**
@@ -258,8 +277,8 @@ int main(){
     num_type *spmv_res;
     num_type *error;
     num_type *csc_val;
-    int      *csc_non_zero;
-    int      *csc_col_idx;
+    int *csc_non_zero;
+    int *csc_col_idx;
 
 
     /**
@@ -269,9 +288,9 @@ int main(){
     num_type *d_error;
     num_type *d_spmv_res;
     num_type *d_csc_val;
-    int      *d_csc_non_zero;
-    int      *d_csc_col_idx;
-    bool     *d_dangling_bitmap;
+    int *d_csc_non_zero;
+    int *d_csc_col_idx;
+    bool *d_dangling_bitmap;
 
     csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/test");
 
@@ -305,16 +324,20 @@ int main(){
 
     to_device_csc(d_csc_val, d_csc_non_zero, d_csc_col_idx, csc_matrix);
 
-    std::cout << "Initializing pr, error, dangling bitmap error" << std::endl;
+    std::cout << "Initializing pr, error, dangling bitmap vectors" << std::endl;
 
     // Initialize error and pr vector
-    d_set_val<<<MAX_B, MAX_T>>>(d_pr, 1.0 / DIM, DIM);
-    d_set_val<<<MAX_B, MAX_T>>>(d_error, 1.0, DIM);
-    d_set_val<<<MAX_B, MAX_T>>>(d_dangling_bitmap, true, DIM);
-    d_set_dangling_bitmap<<<MAX_B, MAX_T>>>(d_dangling_bitmap, d_csc_non_zero, DIM);
+    d_set_val << < MAX_B, MAX_T >> > (d_pr, 1.0 / DIM, DIM);
+    d_set_val << < MAX_B, MAX_T >> > (d_error, 1.0, DIM);
+    d_set_val << < MAX_B, MAX_T >> > (d_dangling_bitmap, true, DIM);
+
+    d_set_dangling_bitmap << < MAX_B, MAX_T >> > (d_dangling_bitmap, d_csc_col_idx, NON_ZERO);
+
+    //d_set_dangling_bitmap(d_dangling_bitmap, d_csc_col_idx, NON_ZERO);
+
 
     // Copy them back to their host vectors
-    cudaMemcpy(pr, d_pr,  DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
+    cudaMemcpy(pr, d_pr, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
     cudaMemcpy(error, d_error, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
 
 
@@ -322,22 +345,36 @@ int main(){
     * TEST
     */
 
+    /*   bool *dbm;
+
+       cudaMallocHost(&dbm, DIM * sizeof(bool));
+       cudaMemcpy(dbm, d_dangling_bitmap, DIM * sizeof(bool), cudaMemcpyDeviceToHost);
+
+       for (int j = 0; j < DIM; ++j) {
+           std::cout << dbm[j] << std::endl;
+       }*/
+
+
+    /**
+     * END TEST
+     */
+
     std::cout << "Beginning pagerank..." << std::endl;
 
     int iterations = 0;
-    while(!check_error(error, TAU, DIM) && iterations < MAX_ITER){
+    while (!check_error(error, TAU, DIM) && iterations < MAX_ITER) {
 
         // TODO: andare a guardare quali sono i valori ottimali sulla gpu
-        spmv<<<MAX_B, MAX_T>>>(d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
-        scale<<<MAX_B, MAX_T>>>(d_spmv_res, ALPHA, DIM);
+        spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
+        scale << < MAX_B, MAX_T >> > (d_spmv_res, ALPHA, DIM);
+
+        cudaDeviceSynchronize();
 
         num_type res_v = dot(DIM, d_dangling_bitmap, d_pr);
 
-        // std::cout << res_v << std::endl;
+        shift << < MAX_B, MAX_T >> > (d_spmv_res, (1.0 - ALPHA) / DIM + (ALPHA / DIM) * res_v, DIM);
 
-        shift<<<MAX_B, MAX_T>>>(d_spmv_res, (1.0 - ALPHA) / DIM + (ALPHA / DIM) * /*res_v*/ 0.0, DIM);
-
-        compute_error<<<MAX_B, MAX_T>>>(d_error, d_spmv_res, d_pr, DIM);
+        compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
 
         cudaDeviceSynchronize();
 
@@ -347,13 +384,13 @@ int main(){
         iterations++;
     }
 
-    cudaMemcpy(pr, d_pr,  DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
+    cudaMemcpy(pr, d_pr, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
 
 
     std::cout << "converged after n_iter: " << iterations << std::endl;
 
 
-    std::map <int, num_type> pr_map;
+    std::map<int, num_type> pr_map;
     std::vector<std::pair<int, num_type>> sorted_pr;
     std::vector<int> sorted_pr_idxs;
 
@@ -364,7 +401,7 @@ int main(){
     }
 
     std::sort(sorted_pr.begin(), sorted_pr.end(),
-              [](const pair<int, num_type>& l, const pair<int, num_type>& r) {
+              [](const std::pair<int, num_type> &l, const std::pair<int, num_type> &r) {
                   return l.second > r.second;
               });
 
@@ -381,9 +418,10 @@ int main(){
     int i = 0;
     int tmp = 0;
 
-    while(results >> tmp){
-        if(tmp != sorted_pr_idxs[i]){
-            std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => " << (double) pr_map[sorted_pr_idxs[i]] << std::endl;
+    while (results >> tmp) {
+        if (tmp != sorted_pr_idxs[i]) {
+            std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => "
+                      << (double) pr_map[sorted_pr_idxs[i]] << std::endl;
         }
         i++;
     }

@@ -1,9 +1,26 @@
 import networkx as nx
 from threading import Thread
+import numpy as np
 from scipy.sparse import csc_matrix
 from time import time
 from tqdm import tqdm
 
+m = [[1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1],
+    [0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1],
+    [0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0],
+    [0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 0],
+    [1, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0],
+    [1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0],
+    [1, 0, 0, 1, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 1, 1],
+    [1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1],
+    [1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1],
+    [1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 1],
+    [0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [1, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1],
+    [0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1]]
 
 def write_log(message, endl='\n'):
     print(message)
@@ -25,15 +42,17 @@ def format_file(filename, values):
         f.write('{}\n'.format(e))
 
 
-DIM = 10000
+DIM = 100000
 write_log("DIM = {}".format(DIM))
 
-PERC_SPARSE = 0.002
+PERC_SPARSE = 0.0002
 write_log("PERC_SPARSE = {}".format(str((1 - PERC_SPARSE)*100) + '%'))
 
 write_log("Generating graph...")
 g = nx.fast_gnp_random_graph(DIM, PERC_SPARSE, directed=True)
 
+# The following line is used for testing with parra's matrix
+# g = nx.from_numpy_matrix(np.matrix(m), create_using=nx.DiGraph  )
 
 write_log("Computing pagerank... alpha=0.85, max_iter=200, tol=10**-15", endl='')
 start = time()
