@@ -233,10 +233,14 @@ int main() {
     std::cout << "Initializing pr, error, dangling bitmap vectors" << std::endl;
 
     // Initialize error and pr vector
-    d_set_val << < MAX_B, MAX_T >> > (d_pr, 1.0 / DIM, DIM);
+/*     d_set_val << < MAX_B, MAX_T >> > (d_pr, 1.0 / DIM, DIM);
     d_set_val << < MAX_B, MAX_T >> > (d_error, 1.0, DIM);
     d_set_val << < MAX_B, MAX_T >> > (d_dangling_bitmap, true, DIM);
-
+ */
+    cudaMemset(d_pr, (num_type) 1.0 / DIM, DIM);
+    cudaMemset(d_error,  (num_type) 1.0, DIM);
+    cudaMemset(d_pr, true, DIM);
+    
     d_set_dangling_bitmap << < MAX_B, MAX_T >> > (d_dangling_bitmap, d_csc_col_idx, NON_ZERO);
 
     //d_set_dangling_bitmap(d_dangling_bitmap, d_csc_col_idx, NON_ZERO);
@@ -268,17 +272,15 @@ int main() {
     std::cout << "Beginning pagerank..." << std::endl;
 
     int iterations = 0;
-    while (!check_error(error, TAU, DIM) && iterations < MAX_ITER) {
+    while (!check_error(error, (num_type) TAU, DIM) && iterations < MAX_ITER) {
 
-        // TODO: andare a guardare quali sono i valori ottimali sulla gpu
         spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
-        scale << < MAX_B, MAX_T >> > (d_spmv_res, ALPHA, DIM);
+        scale << < MAX_B, MAX_T >> > (d_spmv_res, (num_type) ALPHA, DIM);
 
-        cudaDeviceSynchronize();
 
         num_type res_v = dot(DIM, d_dangling_bitmap, d_pr);
 
-        shift << < MAX_B, MAX_T >> > (d_spmv_res, (1.0 - ALPHA) / DIM + (ALPHA / DIM) * res_v, DIM);
+        shift << < MAX_B, MAX_T >> > (d_spmv_res, static_cast<num_type> ((1.0 - ALPHA) / DIM + (ALPHA / DIM) * res_v), DIM);
 
         compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
 
@@ -323,15 +325,17 @@ int main() {
 
     int i = 0;
     int tmp = 0;
+    int errors = 0;
 
     while (results >> tmp) {
         if (tmp != sorted_pr_idxs[i]) {
-            std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => "
-                      << (double) pr_map[sorted_pr_idxs[i]] << std::endl;
+            errors++;
+            // std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => " << (num_type) pr_map[sorted_pr_idxs[i]] << std::endl;
         }
         i++;
     }
 
+    std::cout << "Percentage of error: " << (((double) errors) / (DIM)) * 100 << "%\n" << std::endl;
 
     cudaFree(&pr);
     cudaFree(&error);
