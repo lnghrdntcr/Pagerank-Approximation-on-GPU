@@ -2,6 +2,13 @@
 // Created by Francesco Sgherzi on 15/04/19.
 //
 
+// TODO: Use nvidia visual profiler
+// TODO: Use thrust to compute error check => get one number
+// TODO: If a value has already converged STOP USING IT
+// TODO: Confrontare con nvgraph e parra
+// TODO: Check approximate Oracle 
+
+
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
@@ -13,6 +20,14 @@
 
 #include <cuda.h>
 #include <cuda_runtime_api.h>
+
+#include <thrust/device_vector.h>
+#include <thrust/functional.h>
+#include <thrust/transform.h>
+#include <thrust/inner_product.h>
+#include <thrust/functional.h>
+#include <thrust/iterator/zip_iterator.h>
+#include <thrust/sort.h>
 
 #include "Parse/Parse.h"
 #include "Utils/Utils.h"
@@ -159,6 +174,32 @@ T2 dot(size_t n, T1 *x, T2 *y){
 }
 */
 
+// Tnx parra
+template <typename T>
+struct norm2diff_functor : public thrust::binary_function<T, T, T> {
+    __host__ __device__ T operator()(const T &x, const T &y) const
+    {
+        return (x - y) * (x - y);
+    }
+};
+
+// Tnx parra
+// Compute Euclidean norm of the difference of 2 vectors;
+template <typename T>
+T norm2diff(size_t n, T *x, T *y){
+    T result = std::sqrt(thrust::inner_product(
+        thrust::device_pointer_cast(x),
+        thrust::device_pointer_cast(x + n),
+        thrust::device_pointer_cast(y),
+        0.0f,
+        thrust::plus<T>(),
+        norm2diff_functor<T>()));
+    // cudaCheckError();
+    return result;
+}
+
+
+
 template<typename T1, typename T2>
 T2 dot(size_t n, T1 *x, T2 *y) {
 
@@ -233,17 +274,11 @@ int main() {
     std::cout << "Initializing pr, error, dangling bitmap vectors" << std::endl;
 
     // Initialize error and pr vector
-/*     d_set_val << < MAX_B, MAX_T >> > (d_pr, 1.0 / DIM, DIM);
-    d_set_val << < MAX_B, MAX_T >> > (d_error, 1.0, DIM);
-    d_set_val << < MAX_B, MAX_T >> > (d_dangling_bitmap, true, DIM);
- */
     cudaMemset(d_pr, (num_type) 1.0 / DIM, DIM);
     cudaMemset(d_error,  (num_type) 1.0, DIM);
-    cudaMemset(d_pr, true, DIM);
+    cudaMemset(d_dangling_bitmap, true, DIM);
     
     d_set_dangling_bitmap << < MAX_B, MAX_T >> > (d_dangling_bitmap, d_csc_col_idx, NON_ZERO);
-
-    //d_set_dangling_bitmap(d_dangling_bitmap, d_csc_col_idx, NON_ZERO);
 
 
     // Copy them back to their host vectors
@@ -272,11 +307,11 @@ int main() {
     std::cout << "Beginning pagerank..." << std::endl;
 
     int iterations = 0;
-    while (!check_error(error, (num_type) TAU, DIM) && iterations < MAX_ITER) {
+    bool converged = false;
+    while (!converged && iterations < MAX_ITER) {
 
         spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
         scale << < MAX_B, MAX_T >> > (d_spmv_res, (num_type) ALPHA, DIM);
-
 
         num_type res_v = dot(DIM, d_dangling_bitmap, d_pr);
 
@@ -286,8 +321,11 @@ int main() {
 
         cudaDeviceSynchronize();
 
+        converged = TAU >= norm2diff(DIM, d_pr, d_spmv_res);
+
         cudaMemcpy(error, d_error, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
         cudaMemcpy(d_pr, d_spmv_res, DIM * sizeof(num_type), cudaMemcpyDeviceToDevice);
+
 
         iterations++;
     }
