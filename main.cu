@@ -3,8 +3,8 @@
 //
 
 // TODO: Use nvidia visual profiler
-// TODO: Use thrust to compute error check => get one number
-// TODO: If a value has already converged STOP USING IT
+// TODO: Use thrust to compute error check => get one number (DONE)
+// TODO: If a value has already converged STOP USING IT (DONE) => actually slower due to unbalanced stages
 // TODO: Confrontare con nvgraph e parra
 // TODO: Check approximate Oracle 
 
@@ -103,6 +103,36 @@ void spmv(T *Y, T *pr, T *csc_val, int *csc_non_zero, int *csc_col_idx, const un
 
 }
 
+
+template<typename T>
+__global__
+void part_spmv(T *Y, T *pr, T *csc_val, int *csc_non_zero, int *csc_col_idx, bool *update_bitmap, const unsigned DIMV) {
+
+    int init = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+
+    if (init < DIMV) {
+        for (int i = init; i < DIMV; i += stride) {
+
+            int begin = csc_non_zero[i];
+            int end = csc_non_zero[i + 1];
+
+            T acc = 0.0;
+
+            if(update_bitmap[i] == true){
+                for (int j = begin; j < end; j++) {
+                    acc += csc_val[j] * pr[csc_col_idx[j]];
+                }
+            }
+
+            Y[i] = acc;
+
+        }
+    }
+
+}
+
+
 template<typename T>
 __global__
 void scale(T *m, T v, const unsigned DIMV) {
@@ -146,6 +176,24 @@ void compute_error(T *error, T *next, T *prev, const unsigned DIMV) {
 
 }
 
+template<typename T>
+__global__
+void part_compute_error(T *error, T *next, T *prev, bool *update_bitmap, const unsigned DIMV) {
+
+    int init = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+
+    if (init < DIMV) {
+        for (int i = init; i < DIMV; i += stride) {
+            if(update_bitmap[i]){
+                error[i] = abs(next[i] - prev[i]);
+                update_bitmap[i] = error[i] > TAU;
+            }
+        }
+    }
+
+}
+
 __global__
 void d_set_dangling_bitmap(bool *dangling_bitmap, int *csc_col_idx, const unsigned DIMV) {
 
@@ -177,8 +225,7 @@ T2 dot(size_t n, T1 *x, T2 *y){
 // Tnx parra
 template <typename T>
 struct norm2diff_functor : public thrust::binary_function<T, T, T> {
-    __host__ __device__ T operator()(const T &x, const T &y) const
-    {
+    __host__ __device__ T operator()(const T &x, const T &y) const {
         return (x - y) * (x - y);
     }
 };
@@ -194,7 +241,6 @@ T norm2diff(size_t n, T *x, T *y){
         0.0f,
         thrust::plus<T>(),
         norm2diff_functor<T>()));
-    // cudaCheckError();
     return result;
 }
 
@@ -239,9 +285,10 @@ int main() {
     num_type *d_error;
     num_type *d_spmv_res;
     num_type *d_csc_val;
-    int *d_csc_non_zero;
-    int *d_csc_col_idx;
-    bool *d_dangling_bitmap;
+    int      *d_csc_non_zero;
+    int      *d_csc_col_idx;
+    bool     *d_dangling_bitmap;
+    bool     *d_update_bitmap;
 
     csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/test");
 
@@ -266,6 +313,7 @@ int main() {
     cudaMalloc(&d_error, sizeof(num_type) * DIM);
     cudaMalloc(&d_spmv_res, sizeof(num_type) * DIM);
     cudaMalloc(&d_dangling_bitmap, DIM * sizeof(bool));
+    cudaMalloc(&d_update_bitmap, DIM * sizeof(bool));
 
     std::cout << "Parsing csc files" << std::endl;
 
@@ -277,6 +325,7 @@ int main() {
     cudaMemset(d_pr, (num_type) 1.0 / DIM, DIM);
     cudaMemset(d_error,  (num_type) 1.0, DIM);
     cudaMemset(d_dangling_bitmap, true, DIM);
+    cudaMemset(d_update_bitmap, true, DIM);
     
     d_set_dangling_bitmap << < MAX_B, MAX_T >> > (d_dangling_bitmap, d_csc_col_idx, NON_ZERO);
 
@@ -310,20 +359,22 @@ int main() {
     bool converged = false;
     while (!converged && iterations < MAX_ITER) {
 
-        spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
+        //spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
+        part_spmv <<< MAX_B, MAX_T >>> (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
         scale << < MAX_B, MAX_T >> > (d_spmv_res, (num_type) ALPHA, DIM);
 
         num_type res_v = dot(DIM, d_dangling_bitmap, d_pr);
 
         shift << < MAX_B, MAX_T >> > (d_spmv_res, static_cast<num_type> ((1.0 - ALPHA) / DIM + (ALPHA / DIM) * res_v), DIM);
 
-        compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
+        // compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
+        part_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, d_update_bitmap, DIM);
 
         cudaDeviceSynchronize();
 
         converged = TAU >= norm2diff(DIM, d_pr, d_spmv_res);
 
-        cudaMemcpy(error, d_error, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
+        //cudaMemcpy(error, d_error, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
         cudaMemcpy(d_pr, d_spmv_res, DIM * sizeof(num_type), cudaMemcpyDeviceToDevice);
 
 

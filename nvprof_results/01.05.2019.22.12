@@ -1,0 +1,51 @@
+Parsing /home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/test
+
+FEATURES: 
+	Number of non zero elements: 7994537
+	Number of nodes: 200000
+	Sparseness: 99.4057%
+
+==15377== NVPROF is profiling process 15377, command: ./Approximate_PR
+Initializing device memory
+Parsing csc files
+Initializing pr, error, dangling bitmap vectors
+Beginning pagerank...
+converged after n_iter: 200
+Checking results...
+Percentage of error: 0.001%
+
+==15377== Profiling application: ./Approximate_PR
+==15377== Profiling result:
+            Type  Time(%)      Time     Calls       Avg       Min       Max  Name
+ GPU activities:   94.82%  1.13600s       200  5.6800ms  5.4427ms  5.9152ms  void spmv<double>(double*, double*, double*, int*, int*, unsigned int)
+                    2.37%  28.441ms       603  47.166us     864ns  147.94us  [CUDA memcpy DtoH]
+                    0.84%  10.064ms         3  3.3546ms  63.040us  6.7556ms  [CUDA memcpy HtoD]
+                    0.55%  6.6374ms       200  33.186us  30.848us  37.696us  void shift<double>(double*, double, unsigned int)
+                    0.55%  6.6133ms       200  33.066us  30.912us  37.696us  void scale<double>(double*, double, unsigned int)
+                    0.42%  5.0420ms       200  25.210us  24.224us  26.400us  void thrust::cuda_cub::cub::DeviceReduceKernel<thrust::cuda_cub::cub::DeviceReducePolicy<float, int, thrust::plus<double>>::Policy600, thrust::cuda_cub::transform_pair_of_input_iterators_t<float, thrust::device_ptr<double>, thrust::device_ptr<double>, norm2diff_functor<double>>, float*, int, thrust::plus<double>>(int, double, thrust::plus<double>, thrust::cuda_cub::cub::GridEvenShare<double>, thrust::cuda_cub::cub::DeviceReducePolicy<float, int, thrust::plus<double>>::Policy600)
+                    0.30%  3.6016ms       200  18.007us  16.896us  27.840us  [CUDA memcpy DtoD]
+                    0.11%  1.3008ms         1  1.3008ms  1.3008ms  1.3008ms  d_set_dangling_bitmap(bool*, int*, unsigned int)
+                    0.03%  322.72us       200  1.6130us  1.2480us  12.800us  void thrust::cuda_cub::cub::DeviceReduceSingleTileKernel<thrust::cuda_cub::cub::DeviceReducePolicy<float, int, thrust::plus<double>>::Policy600, float*, float*, int, thrust::plus<double>, float>(int, double, thrust::plus<double>, thrust::cuda_cub::cub::DeviceReducePolicy<float, int, thrust::plus<double>>::Policy600, float*)
+                    0.00%  1.6960us         3     565ns     512ns     672ns  [CUDA memset]
+      API calls:   71.48%  1.06636s       606  1.7597ms  12.227us  6.7909ms  cudaMemcpy
+                   26.61%  397.06ms       402  987.70us  7.0660us  272.83ms  cudaHostAlloc
+                    0.83%  12.423ms       400  31.057us  20.937us  57.281us  cudaDeviceSynchronize
+                    0.44%  6.5677ms      1001  6.5610us  3.6140us  22.816us  cudaLaunchKernel
+                    0.19%  2.8969ms       207  13.994us  4.3480us  183.45us  cudaMalloc
+                    0.15%  2.1700ms       200  10.850us  10.106us  34.504us  cudaMemcpyAsync
+                    0.09%  1.3891ms       208  6.6780us     386ns  25.442us  cudaFree
+                    0.06%  915.39us       400  2.2880us  1.8770us  20.397us  cudaFuncGetAttributes
+                    0.05%  704.62us        97  7.2640us     199ns  322.94us  cuDeviceGetAttribute
+                    0.02%  314.94us       200  1.5740us  1.4130us  2.9390us  cudaStreamSynchronize
+                    0.02%  279.57us         1  279.57us  279.57us  279.57us  cuDeviceTotalMem
+                    0.02%  259.07us       400     647ns     424ns  1.5140us  cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags
+                    0.01%  148.82us       400     372ns     248ns     911ns  cudaGetDevice
+                    0.01%  147.71us       400     369ns     228ns     849ns  cudaDeviceGetAttribute
+                    0.01%  101.94us         1  101.94us  101.94us  101.94us  cuDeviceGetName
+                    0.00%  60.832us       400     152ns      91ns     205ns  cudaPeekAtLastError
+                    0.00%  50.102us         3  16.700us  4.9710us  38.019us  cudaMemset
+                    0.00%  37.710us       200     188ns     152ns     281ns  cudaGetLastError
+                    0.00%  5.1980us         1  5.1980us  5.1980us  5.1980us  cuDeviceGetPCIBusId
+                    0.00%  2.6540us         3     884ns     181ns  2.1460us  cuDeviceGetCount
+                    0.00%  1.3780us         2     689ns     198ns  1.1800us  cuDeviceGet
+                    0.00%     353ns         1     353ns     353ns     353ns  cuDeviceGetUuid
