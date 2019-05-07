@@ -11,7 +11,7 @@
 #include <vector>
 
 typedef struct csc_t {
-    std::vector<double> val;
+    std::vector<float> val;
     std::vector<int> non_zero;
     std::vector<int> col_idx;
 } csc_t;

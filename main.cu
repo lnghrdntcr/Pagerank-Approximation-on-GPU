@@ -38,7 +38,7 @@
 
 #define MAX_ITER 200
 
-#define num_type double
+#define num_type float
 
 template<typename T>
 bool check_error(T *e, const T error, const unsigned DIMV) {
