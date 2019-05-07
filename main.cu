@@ -2,12 +2,10 @@
 // Created by Francesco Sgherzi on 15/04/19.
 //
 
-// TODO: Use nvidia visual profiler
-// TODO: Use thrust to compute error check => get one number (DONE)
-// TODO: If a value has already converged STOP USING IT (DONE) => actually slower due to unbalanced stages
-// TODO: Confrontare con nvgraph e parra
-// TODO: Check approximate Oracle 
-
+// TODO: Check graphblast
+// TODO: Implement spmv with bitmask graphblast
+// TODO: Different data types.
+// TODO: multiply pr value by int max to use fixed point (?)
 
 #include <stdlib.h>
 #include <math.h>
@@ -116,16 +114,17 @@ void part_spmv(T *Y, T *pr, T *csc_val, int *csc_non_zero, int *csc_col_idx, boo
 
             int begin = csc_non_zero[i];
             int end = csc_non_zero[i + 1];
-
-            T acc = 0.0;
-
+            
             if(update_bitmap[i] == true){
+
+                T acc = 0.0;
+
                 for (int j = begin; j < end; j++) {
                     acc += csc_val[j] * pr[csc_col_idx[j]];
                 }
-            }
 
-            Y[i] = acc;
+                Y[i] = acc;
+            }
 
         }
     }
@@ -419,7 +418,7 @@ int main() {
     while (results >> tmp) {
         if (tmp != sorted_pr_idxs[i]) {
             errors++;
-            // std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => " << (num_type) pr_map[sorted_pr_idxs[i]] << std::endl;
+            std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => " << (num_type) pr_map[sorted_pr_idxs[i]] << std::endl;
         }
         i++;
     }
