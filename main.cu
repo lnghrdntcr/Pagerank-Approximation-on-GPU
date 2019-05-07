@@ -358,16 +358,16 @@ int main() {
     bool converged = false;
     while (!converged && iterations < MAX_ITER) {
 
-        //spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
-        part_spmv <<< MAX_B, MAX_T >>> (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
+        spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
+        // part_spmv <<< MAX_B, MAX_T >>> (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
         scale << < MAX_B, MAX_T >> > (d_spmv_res, (num_type) ALPHA, DIM);
 
         num_type res_v = dot(DIM, d_dangling_bitmap, d_pr);
 
         shift << < MAX_B, MAX_T >> > (d_spmv_res, static_cast<num_type> ((1.0 - ALPHA) / DIM + (ALPHA / DIM) * res_v), DIM);
 
-        // compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
-        part_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, d_update_bitmap, DIM);
+        compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
+        // part_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, d_update_bitmap, DIM);
 
         cudaDeviceSynchronize();
 
@@ -398,7 +398,8 @@ int main() {
 
     std::sort(sorted_pr.begin(), sorted_pr.end(),
               [](const std::pair<int, num_type> &l, const std::pair<int, num_type> &r) {
-                  return l.second > r.second;
+                  if(l.second != r.second)return l.second > r.second;
+                  else return l.first > r.first;
               });
 
     // print the vector
@@ -418,7 +419,7 @@ int main() {
     while (results >> tmp) {
         if (tmp != sorted_pr_idxs[i]) {
             errors++;
-            std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => " << (num_type) pr_map[sorted_pr_idxs[i]] << std::endl;
+            // std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => " << (num_type) pr_map[sorted_pr_idxs[i]] << std::endl;
         }
         i++;
     }

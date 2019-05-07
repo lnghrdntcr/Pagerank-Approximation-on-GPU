@@ -42,17 +42,17 @@ def format_file(filename, values):
         f.write('{}\n'.format(e))
 
 
-DIM = 200000
+DIM = 4000000
 write_log("DIM = {}".format(DIM))
 
-PERC_SPARSE = 0.0002
+PERC_SPARSE = 0.0000001
 write_log("PERC_SPARSE = {}% => expecting {} elements per column".format(str((1 - PERC_SPARSE)*100), DIM * PERC_SPARSE))
 
 write_log("Generating graph...")
 g = nx.fast_gnp_random_graph(DIM, PERC_SPARSE, directed=True)
 
 # The following line is used for testing with parra's matrix
-# g = nx.from_numpy_matrix(np.matrix(m), create_using=nx.DiGraph  )
+#g = nx.from_numpy_matrix(np.matrix(m), create_using=nx.DiGraph)
 
 write_log("Computing pagerank... alpha=0.85, max_iter=200, tol=10**-15", endl='')
 start = time()
