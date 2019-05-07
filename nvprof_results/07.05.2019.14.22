@@ -1,0 +1,42 @@
+Parsing /home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/test
+
+FEATURES: 
+	Number of non zero elements: 1599111
+	Number of nodes: 4000000
+	Sparseness: 99.8717%
+
+==1666== NVPROF is profiling process 1666, command: ./Approximate_PR
+Initializing device memory
+Parsing csc files
+Initializing pr, error, dangling bitmap vectors
+Beginning pagerank...
+converged after n_iter: 56
+Checking results...
+Percentage of error: 10.3096%
+
+==1666== Profiling application: ./Approximate_PR
+==1666== Profiling result:
+            Type  Time(%)      Time     Calls       Avg       Min       Max  Name
+ GPU activities:   53.04%  159.89ms       171  935.01us  304.74us  1.4830ms  [CUDA memcpy DtoH]
+                   27.81%  83.841ms        56  1.4972ms  1.4901ms  1.5116ms  void spmv<float>(float*, float*, float*, int*, int*, unsigned int)
+                    5.75%  17.319ms        56  309.26us  307.75us  313.44us  void compute_error<float>(float*, float*, float*, unsigned int)
+                    4.14%  12.482ms        56  222.90us  209.99us  470.34us  void scale<float>(float*, float, unsigned int)
+                    3.96%  11.948ms        56  213.36us  211.20us  231.46us  [CUDA memcpy DtoD]
+                    3.93%  11.853ms        56  211.66us  209.28us  226.75us  void shift<float>(float*, float, unsigned int)
+                    1.01%  3.0476ms         3  1.0159ms  630.79us  1.7023ms  [CUDA memcpy HtoD]
+                    0.35%  1.0451ms         1  1.0451ms  1.0451ms  1.0451ms  d_set_dangling_bitmap(bool*, int*, unsigned int)
+                    0.00%  2.0800us         4     520ns     512ns     544ns  [CUDA memset]
+      API calls:   70.24%  477.97ms       114  4.1927ms  996.76us  197.22ms  cudaHostAlloc
+                   24.73%  168.25ms       230  731.54us  13.198us  2.6333ms  cudaMemcpy
+                    4.46%  30.367ms        56  542.27us  513.27us  592.60us  cudaDeviceSynchronize
+                    0.34%  2.2880ms       225  10.168us  3.8510us  35.950us  cudaLaunchKernel
+                    0.13%  912.72us         8  114.09us  92.907us  134.49us  cudaMalloc
+                    0.06%  380.77us        97  3.9250us     108ns  171.85us  cuDeviceGetAttribute
+                    0.03%  173.35us         1  173.35us  173.35us  173.35us  cuDeviceTotalMem
+                    0.01%  63.219us         4  15.804us  4.5010us  46.950us  cudaMemset
+                    0.01%  49.857us         1  49.857us  49.857us  49.857us  cuDeviceGetName
+                    0.00%  12.038us         8  1.5040us     419ns  8.9560us  cudaFree
+                    0.00%  2.8580us         1  2.8580us  2.8580us  2.8580us  cuDeviceGetPCIBusId
+                    0.00%  1.6260us         3     542ns     136ns  1.3110us  cuDeviceGetCount
+                    0.00%     630ns         2     315ns     126ns     504ns  cuDeviceGet
+                    0.00%     198ns         1     198ns     198ns     198ns  cuDeviceGetUuid

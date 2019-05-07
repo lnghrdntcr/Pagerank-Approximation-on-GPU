@@ -19,13 +19,8 @@
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 
-#include <thrust/device_vector.h>
-#include <thrust/functional.h>
-#include <thrust/transform.h>
+
 #include <thrust/inner_product.h>
-#include <thrust/functional.h>
-#include <thrust/iterator/zip_iterator.h>
-#include <thrust/sort.h>
 
 #include "Parse/Parse.h"
 #include "Utils/Utils.h"
@@ -206,66 +201,9 @@ void d_set_dangling_bitmap(bool *dangling_bitmap, int *csc_col_idx, const unsign
 }
 
 
-/**
- * Cannot use thrust's implementation of dot product because it goes out of memory
- * even for 100k pages.
- */
-/*
-T2 dot(size_t n, T1 *x, T2 *y){
-    T2 result = thrust::inner_product(
-            thrust::device_pointer_cast(x),
-            thrust::device_pointer_cast(x + n),
-            thrust::device_pointer_cast(y),
-            0.0f);
-    return result;
-}
-*/
-
-// Tnx parra
-template <typename T>
-struct norm2diff_functor : public thrust::binary_function<T, T, T> {
-    __host__ __device__ T operator()(const T &x, const T &y) const {
-        return (x - y) * (x - y);
-    }
-};
-
-// Tnx parra
-// Compute Euclidean norm of the difference of 2 vectors;
-template <typename T>
-T norm2diff(size_t n, T *x, T *y){
-    T result = std::sqrt(thrust::inner_product(
-        thrust::device_pointer_cast(x),
-        thrust::device_pointer_cast(x + n),
-        thrust::device_pointer_cast(y),
-        0.0f,
-        thrust::plus<T>(),
-        norm2diff_functor<T>()));
-    return result;
-}
-
-
-
 template<typename T1, typename T2>
 T2 dot(size_t n, T1 *x, T2 *y) {
-
-    T1 *tempx;
-    T2 *tempy;
-    T2 result = 0.0;
-
-    cudaMallocHost(&tempx, n * sizeof(T1));
-    cudaMallocHost(&tempy, n * sizeof(T2));
-
-    cudaMemcpy(tempx, x, n * sizeof(T1), cudaMemcpyDeviceToHost);
-    cudaMemcpy(tempy, y, n * sizeof(T2), cudaMemcpyDeviceToHost);
-
-    for (int i = 0; i < n; ++i) {
-
-        result += tempx[i] * tempy[i];
-
-    }
-
-    return result;
-
+    return thrust::inner_product(thrust::device, x, x + n, y, (T2) 0.0);
 }
 
 int main() {
@@ -362,6 +300,7 @@ int main() {
         // part_spmv <<< MAX_B, MAX_T >>> (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
         scale << < MAX_B, MAX_T >> > (d_spmv_res, (num_type) ALPHA, DIM);
 
+        // Figure out a way to do the dot product inside GPU
         num_type res_v = dot(DIM, d_dangling_bitmap, d_pr);
 
         shift << < MAX_B, MAX_T >> > (d_spmv_res, static_cast<num_type> ((1.0 - ALPHA) / DIM + (ALPHA / DIM) * res_v), DIM);
@@ -371,11 +310,10 @@ int main() {
 
         cudaDeviceSynchronize();
 
-        converged = TAU >= norm2diff(DIM, d_pr, d_spmv_res);
-
-        //cudaMemcpy(error, d_error, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
+        cudaMemcpy(error, d_error, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
         cudaMemcpy(d_pr, d_spmv_res, DIM * sizeof(num_type), cudaMemcpyDeviceToDevice);
 
+        converged = check_error(error, (num_type) TAU, DIM);
 
         iterations++;
     }
