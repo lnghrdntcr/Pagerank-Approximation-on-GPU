@@ -42,10 +42,10 @@ def format_file(filename, values):
         f.write('{}\n'.format(e))
 
 
-DIM = 4000000
+DIM = 400000
 write_log("DIM = {}".format(DIM))
 
-PERC_SPARSE = 0.0000001
+PERC_SPARSE = 0.00001
 write_log("PERC_SPARSE = {}% => expecting {} elements per column".format(str((1 - PERC_SPARSE)*100), DIM * PERC_SPARSE))
 
 write_log("Generating graph...")
@@ -67,7 +67,7 @@ start = time()
 
 pr_sorted = sorted(pr.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
 
-f = open('generated_csc/test/results.txt', 'w+')
+f = open('generated_csc/cur/results.txt', 'w+')
 
 for el in pr_sorted:
     f.write(str(el[0]) + '\n')
@@ -98,9 +98,9 @@ indptr = csc.indptr
 write_log("Dumping matrices: ")
 start = time()
 
-data_t = Thread(target=format_file, args=('generated_csc/test/val.txt'.format(PERC_SPARSE), data))
-col_idx_t = Thread(target=format_file, args=('generated_csc/test/col_idx.txt'.format(PERC_SPARSE), indices_col))
-non_zero_t = Thread(target=format_file, args=('generated_csc/test/non_zero.txt'.format(PERC_SPARSE), indptr))
+data_t = Thread(target=format_file, args=('generated_csc/cur/val.txt'.format(PERC_SPARSE), data))
+col_idx_t = Thread(target=format_file, args=('generated_csc/cur/col_idx.txt'.format(PERC_SPARSE), indices_col))
+non_zero_t = Thread(target=format_file, args=('generated_csc/cur/non_zero.txt'.format(PERC_SPARSE), indptr))
 
 
 data_t.start()

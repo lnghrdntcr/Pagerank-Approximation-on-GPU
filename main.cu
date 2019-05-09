@@ -1,4 +1,3 @@
-//
 // Created by Francesco Sgherzi on 15/04/19.
 //
 
@@ -19,6 +18,9 @@
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 
+#ifdef __clang__
+#include <cuda_builtin_vars.h>
+#endif
 
 #include <thrust/inner_product.h>
 
@@ -33,7 +35,7 @@
 
 #define MAX_ITER 200
 
-#define num_type float
+#define num_type double
 
 template<typename T>
 bool check_error(T *e, const T error, const unsigned DIMV) {
@@ -133,7 +135,7 @@ void scale(T *m, T v, const unsigned DIMV) {
 
     int init = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = blockDim.x * gridDim.x;
-
+    
     if (init < DIMV) {
         for (int i = init; i < DIMV; i += stride) {
             m[i] *= v;
@@ -206,7 +208,7 @@ T2 dot(size_t n, T1 *x, T2 *y) {
     return thrust::inner_product(thrust::device, x, x + n, y, (T2) 0.0);
 }
 
-int main() {
+int o_main() {
 
 
     /**

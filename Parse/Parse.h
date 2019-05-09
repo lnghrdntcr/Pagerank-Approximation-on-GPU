@@ -11,9 +11,15 @@
 #include <vector>
 
 typedef struct csc_t {
-    std::vector<float> val;
+    std::vector<double> val;
     std::vector<int> non_zero;
     std::vector<int> col_idx;
 } csc_t;
+
+typedef struct csc_fixed_t {
+    std::vector<unsigned> val;
+    std::vector<int> non_zero;
+    std::vector<int> col_idx;
+} csc_fixed_t;
 
 csc_t parse_dir(std::string dir_path);
