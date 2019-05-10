@@ -27,7 +27,7 @@
 #include "Parse/Parse.h"
 #include "Utils/Utils.h"
 
-#define TAU 0.0
+#define TAU 1e-12
 #define ALPHA 0.85
 
 #define MAX_B 1024
@@ -208,7 +208,7 @@ T2 dot(size_t n, T1 *x, T2 *y) {
     return thrust::inner_product(thrust::device, x, x + n, y, (T2) 0.0);
 }
 
-int o_main() {
+int Omain() {
 
 
     /**
@@ -229,7 +229,7 @@ int o_main() {
     bool     *d_dangling_bitmap;
     bool     *d_update_bitmap;
 
-    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/test");
+    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur");
 
     const unsigned NON_ZERO = csc_matrix.val.size();
     const unsigned DIM = csc_matrix.non_zero.size() - 1;

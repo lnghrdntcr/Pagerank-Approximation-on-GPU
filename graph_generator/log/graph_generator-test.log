@@ -902,3 +902,60 @@ Formatting generated_csc/cur/col_idx.txt
 Formatting generated_csc/cur/val.txt
 Formatting generated_csc/cur/non_zero.txt
 DONE [4.309809684753418s]
+DIM = 400000
+PERC_SPARSE = 99.99900000000001% => expecting 4.0 elements per column
+Generating graph...
+1557509153.8756714: Computing pagerank... alpha=0.85, max_iter=200, tol=10**-15 DIM = 400000
+PERC_SPARSE = 99.99900000000001% => expecting 4.0 elements per column
+Generating graph...
+1557509178.1058297: Computing pagerank... alpha=0.85, max_iter=200, tol=10**-6 DONE [11.53213357925415s]
+1557509189.6382113: Sorting and dumping pr values... DONE [0.7750661373138428s]
+1557509190.413411: Formatting matrix in stochastic form... DONE [6.609196662902832s]
+1557509197.0228255: Converting matrix in csc DONE [5.904148101806641s]
+Dumping matrices: 
+Formatting generated_csc/cur/val.txt
+Formatting generated_csc/cur/col_idx.txt
+Formatting generated_csc/cur/non_zero.txt
+DONE [4.572450876235962s]
+DIM = 4000000
+PERC_SPARSE = 99.9999% => expecting 4.0 elements per column
+Generating graph...
+DIM = 400000
+PERC_SPARSE = 99.99900000000001% => expecting 4.0 elements per column
+Generating graph...
+1557510335.8391693: Computing pagerank... alpha=0.85, max_iter=200, tol=10**-12 DONE [65.27011966705322s]
+1557510401.1095695: Sorting and dumping pr values... DONE [0.8709378242492676s]
+1557510401.980621: Formatting matrix in stochastic form... DONE [6.492407560348511s]
+1557510408.473325: Converting matrix in csc DONE [5.678894281387329s]
+Dumping matrices: 
+Formatting generated_csc/cur/col_idx.txt
+Formatting generated_csc/cur/val.txt
+Formatting generated_csc/cur/non_zero.txt
+DONE [3.5961556434631348s]
+DIM = 400000
+PERC_SPARSE = 99.9999% => expecting 0.39999999999999997 elements per column
+Generating graph...
+1557510635.0963898: Computing pagerank... alpha=0.85, max_iter=200, tol=10**-12 DONE [14.493605613708496s]
+1557510649.5902786: Sorting and dumping pr values... DONE [0.5404601097106934s]
+1557510650.1308649: Formatting matrix in stochastic form... DONE [2.0266618728637695s]
+1557510652.1577508: Converting matrix in csc DONE [1.2990992069244385s]
+Dumping matrices: 
+Formatting generated_csc/cur/non_zero.txt
+Formatting generated_csc/cur/val.txt
+Formatting generated_csc/cur/col_idx.txt
+DONE [0.6388092041015625s]
+DIM = 4000000
+PERC_SPARSE = 99.9999% => expecting 4.0 elements per column
+Generating graph...
+DIM = 4000000
+PERC_SPARSE = 99.99999000000001% => expecting 0.39999999999999997 elements per column
+Generating graph...
+1557510738.947714: Computing pagerank... alpha=0.85, max_iter=200, tol=10**-12 DONE [136.34612584114075s]
+1557510875.3266647: Sorting and dumping pr values... DONE [6.0191967487335205s]
+1557510881.3461049: Formatting matrix in stochastic form... DONE [27.468045711517334s]
+1557510908.8143783: Converting matrix in csc DONE [17.90930461883545s]
+Dumping matrices: 
+Formatting generated_csc/cur/val.txt
+Formatting generated_csc/cur/non_zero.txt
+Formatting generated_csc/cur/col_idx.txt
+DONE [7.397935152053833s]

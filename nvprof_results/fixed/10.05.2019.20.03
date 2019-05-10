@@ -1,0 +1,43 @@
+Parsing /home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur
+
+FEATURES: 
+	Number of non zero elements: 1599751
+	Number of nodes: 4000000
+	Sparseness: 99.8717%
+
+==31941== NVPROF is profiling process 31941, command: ./Approximate_PR
+Initializing device memory
+Initializing PR, Error, dangling bitmap, update bitmap vecors
+Beginning pagerank
+Pagerank converged after 2 iterations
+Checking results...
+Percentage of error: 0.0004%
+
+End of computation! Freeing memory...
+Done.
+==31941== Profiling application: ./Approximate_PR
+==31941== Profiling result:
+            Type  Time(%)      Time     Calls       Avg       Min       Max  Name
+ GPU activities:   39.70%  2.87566s         2  1.43783s  1.43445s  1.44121s  void d_fixed_spmv<unsigned int>(unsigned int*, unsigned int*, unsigned int*, int*, int*, int)
+                   17.67%  1.28017s         2  640.09ms  636.37ms  643.81ms  void d_fixed_compute_error<unsigned int>(unsigned int*, unsigned int*, unsigned int*, unsigned int)
+                   17.18%  1.24461s         2  622.31ms  615.26ms  629.36ms  void d_fixed_scale<unsigned int>(unsigned int*, unsigned int, unsigned int)
+                   16.20%  1.17331s         2  586.66ms  583.83ms  589.49ms  void d_fixed_shift<unsigned int>(unsigned int*, unsigned int, unsigned int)
+                    3.35%  242.77ms         1  242.77ms  242.77ms  242.77ms  d_fixed_set_dangling_bitmap(bool*, int*, unsigned int)
+                    3.06%  221.54ms         2  110.77ms  105.82ms  115.72ms  void d_set_value<unsigned int>(unsigned int*, unsigned int, unsigned int)
+                    2.71%  195.97ms         2  97.985ms  95.475ms  100.49ms  void d_set_value<bool>(bool*, bool, unsigned int)
+                    0.09%  6.2721ms         5  1.2544ms  1.2151ms  1.3662ms  [CUDA memcpy DtoH]
+                    0.04%  2.9844ms         3  994.79us  662.92us  1.6336ms  [CUDA memcpy HtoD]
+                    0.01%  423.23us         2  211.62us  211.17us  212.07us  [CUDA memcpy DtoD]
+      API calls:   86.48%  6.54613s         2  3.27307s  3.26384s  3.28229s  cudaDeviceSynchronize
+                    8.85%  669.87ms        10  66.987ms  27.840us  661.52ms  cudaMemcpy
+                    4.63%  350.73ms         6  58.455ms  1.0847ms  336.27ms  cudaHostAlloc
+                    0.01%  1.1025ms        97  11.366us     256ns  532.18us  cuDeviceGetAttribute
+                    0.01%  892.67us         8  111.58us  85.541us  185.01us  cudaMalloc
+                    0.01%  380.82us         1  380.82us  380.82us  380.82us  cuDeviceTotalMem
+                    0.00%  245.43us        13  18.878us  3.8670us  56.487us  cudaLaunchKernel
+                    0.00%  152.79us         1  152.79us  152.79us  152.79us  cuDeviceGetName
+                    0.00%  37.729us        12  3.1440us     390ns  21.786us  cudaFree
+                    0.00%  3.4830us         3  1.1610us     279ns  2.4550us  cuDeviceGetCount
+                    0.00%  3.1340us         2  1.5670us     307ns  2.8270us  cuDeviceGet
+                    0.00%  2.8780us         1  2.8780us  2.8780us  2.8780us  cuDeviceGetPCIBusId
+                    0.00%     644ns         1     644ns     644ns     644ns  cuDeviceGetUuid
