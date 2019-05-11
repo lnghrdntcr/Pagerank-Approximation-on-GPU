@@ -27,10 +27,10 @@
 #include "Parse/Parse.h"
 #include "Utils/Utils.h"
 
-#define TAU 1e-12
+#define TAU 0.0
 #define ALPHA 0.85
 
-#define MAX_B 1024
+#define MAX_B 512
 #define MAX_T 1024
 
 #define MAX_ITER 200
@@ -208,7 +208,7 @@ T2 dot(size_t n, T1 *x, T2 *y) {
     return thrust::inner_product(thrust::device, x, x + n, y, (T2) 0.0);
 }
 
-int Omain() {
+int omain() {
 
 
     /**
@@ -350,13 +350,14 @@ int Omain() {
     std::cout << "Checking results..." << std::endl;
 
     std::ifstream results;
-    results.open("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/test/results.txt");
+    results.open("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur/results.txt");
 
     int i = 0;
     int tmp = 0;
     int errors = 0;
 
     while (results >> tmp) {
+        // std::cout << "reading " << tmp << std::endl;
         if (tmp != sorted_pr_idxs[i]) {
             errors++;
             // std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => " << (num_type) pr_map[sorted_pr_idxs[i]] << std::endl;

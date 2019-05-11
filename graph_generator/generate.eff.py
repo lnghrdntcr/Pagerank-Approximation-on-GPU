@@ -24,7 +24,7 @@ m = [[1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1],
 
 def write_log(message, endl='\n'):
     print(message)
-    f = open("log/graph_generator-test.log".format(str(time())), "a+")
+    f = open("log/graph_generator-cur.log".format(str(time())), "a+")
     if endl == '\n':
         f.write("{}{}".format(message, endl))
     else:
@@ -42,16 +42,16 @@ def format_file(filename, values):
         f.write('{}\n'.format(e))
 
 
-DIM = 4000000
+DIM = 4000
 write_log("DIM = {}".format(DIM))
 
-PERC_SPARSE = 0.0000001
+PERC_SPARSE = 0.000001
 write_log("PERC_SPARSE = {}% => expecting {} elements per column".format(str((1 - PERC_SPARSE)*100), DIM * PERC_SPARSE))
 
 write_log("Generating graph...")
 g = nx.fast_gnp_random_graph(DIM, PERC_SPARSE, directed=True)
 
-# The following line is used for testing with parra's matrix
+# The following line is used for curing with parra's matrix
 #g = nx.from_numpy_matrix(np.matrix(m), create_using=nx.DiGraph)
 
 write_log("Computing pagerank... alpha=0.85, max_iter=200, tol=10**-12", endl='')

@@ -22,8 +22,8 @@
 #define TAU 0.0
 #define ALPHA 0.85
 
-#define MAX_B 1
-#define MAX_T 1
+#define MAX_B 512
+#define MAX_T 1024
 
 #define MAX_ITER 200
 
@@ -32,18 +32,16 @@
 // 00.00 0000 0000 0000 0000 0000 0000 0000
 #define SCALE 30
 
-// #define d_to_fixed(x) ((x) * ( (double) (1 << SCALE)))
-#define fixed_mult(x, y) ((((x) >> SCALE / 2) * ((y) >> SCALE / 2)) >> 0)
-
-// TODO: Figure out a way to make fixed point division work
-// #define fixed_div(x, y) ((x << SCALE / 2) / (y << SCALE / 2))
+__host__
+__device__
+inline num_type d_to_fixed(double x) {
+    return x * ((double) (1 << SCALE));
+}
 
 __host__
 __device__
-inline unsigned d_to_fixed(double x) {
-
-    return x * ((double) (1 << SCALE));
-
+inline num_type fixed_mult(num_type x, num_type y){
+    return (((x) >> (SCALE / 2)) * ((y) >> (SCALE / 2))) >> 0;
 }
 
 csc_fixed_t to_fixed_csc(csc_t m) {
@@ -52,7 +50,7 @@ csc_fixed_t to_fixed_csc(csc_t m) {
 
     fixed_csc.col_idx = m.col_idx;
     fixed_csc.non_zero = m.non_zero;
-    fixed_csc.val = std::vector<unsigned>();
+    fixed_csc.val = std::vector<num_type>();
 
     for (int i = 0; i < m.val.size(); ++i) {
         fixed_csc.val.push_back(d_to_fixed(m.val[i]));
@@ -61,6 +59,7 @@ csc_fixed_t to_fixed_csc(csc_t m) {
     return fixed_csc;
 
 }
+
 
 template<typename T>
 void to_device_csc(T *csc_val, int *csc_non_zero, int *csc_col_idx, const csc_fixed_t src) {
@@ -102,6 +101,7 @@ void d_fixed_spmv(T *Y, T *pr, T *csc_val, int *csc_non_zero, int *csc_col_idx, 
         for (int j = begin; j < end; ++j) {
             acc += fixed_mult(csc_val[j], pr[csc_col_idx[j]]);
         }
+
         Y[i] = acc;
     }
 }
@@ -113,7 +113,6 @@ void d_set_value(T *v, const T value, const unsigned DIMV) {
 
     int init = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = blockDim.x * gridDim.x;
-
 
     for (int i = init; i < DIMV; i += stride) {
         v[i] = value;
@@ -148,8 +147,7 @@ void d_fixed_shift(T *v, T value, const unsigned DIMV) {
 }
 
 __device__
-        __forceinline__
-
+__forceinline__
 unsigned d_fixed_abs(const unsigned x, const unsigned y) {
     if (x > y) return x - y;
     else return y - x;
@@ -171,7 +169,6 @@ void d_fixed_compute_error(T *error, T *v1, T *v2, const unsigned DIMV) {
 template<typename T>
 bool check_error(T *e, const T error, const unsigned DIMV) {
     for (int i = 0; i < DIMV; ++i) {
-        // printf("%d => %d\n", e[i], error);
         if (e[i] > error) return false;
     }
     return true;
@@ -217,8 +214,6 @@ void debug_print(char *name, T *v, const unsigned DIMV) {
 }
 
 int main() {
-
-
 
     /**
      * HOST
@@ -287,6 +282,9 @@ int main() {
 
     int iterations = 0;
     bool converged = false;
+    const num_type F_ALPHA = d_to_fixed(ALPHA);
+    const num_type F_SHIFT = d_to_fixed((1.0 - ALPHA) / DIM);
+    const num_type F_DANGLING_SCALE = d_to_fixed(ALPHA / DIM);
 
     while (!converged && iterations < MAX_ITER) {
 
@@ -294,13 +292,13 @@ int main() {
         d_fixed_spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
 
         // Scale
-        d_fixed_scale << < MAX_B, MAX_T >> > (d_spmv_res, d_to_fixed(ALPHA), DIM);
+        d_fixed_scale << < MAX_B, MAX_T >> > (d_spmv_res, F_ALPHA, DIM);
 
-        //TODO: Remember to handle dangling nodes!
+        // Dangling nodes handler
         num_type res_v = h_fixed_dot(d_pr, d_dangling_bitmap, DIM);
 
         // Shift
-        d_fixed_shift << < MAX_B, MAX_T >> > (d_spmv_res, d_to_fixed((1.0 - ALPHA) / DIM + ((ALPHA / DIM) * res_v)), DIM);
+        d_fixed_shift << < MAX_B, MAX_T >> > (d_spmv_res, ((num_type) F_SHIFT + fixed_mult(F_DANGLING_SCALE, res_v)), DIM);
 
         // Compute error
         d_fixed_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
@@ -331,6 +329,8 @@ int main() {
         //std::cout << "Index: " << i << " => " << pr_map[i] << std::endl;
     }
 
+
+
     std::sort(sorted_pr.begin(), sorted_pr.end(),
               [](const std::pair<int, num_type> &l, const std::pair<int, num_type> &r) {
                   if (l.second != r.second)return l.second > r.second;
@@ -345,7 +345,7 @@ int main() {
     std::cout << "Checking results..." << std::endl;
 
     std::ifstream results;
-    results.open("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/test/results.txt");
+    results.open("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur/results.txt");
 
     int i = 0;
     int tmp = 0;
@@ -354,7 +354,7 @@ int main() {
     while (results >> tmp) {
         if (tmp != sorted_pr_idxs[i]) {
             errors++;
-            // std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => " << (num_type) pr_map[sorted_pr_idxs[i]] << std::endl;
+            //std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => " << (num_type) pr_map[sorted_pr_idxs[i]] << std::endl;
         }
         i++;
     }
@@ -364,6 +364,7 @@ int main() {
     std::cout << "End of computation! Freeing memory..." << std::endl;
 
     cudaFree(&pr);
+
     cudaFree(&error);
 
     cudaFree(&d_pr);
