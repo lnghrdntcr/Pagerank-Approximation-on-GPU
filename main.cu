@@ -1,7 +1,6 @@
 // Created by Francesco Sgherzi on 15/04/19.
 //
 
-// TODO: Check graphblast
 // TODO: Implement spmv with bitmask graphblast
 // TODO: Different data types.
 // TODO: multiply pr value by int max to use fixed point (?)
@@ -23,6 +22,9 @@
 #endif
 
 #include <thrust/inner_product.h>
+#include <thrust/count.h>
+#include <thrust/execution_policy.h>
+#include <thrust/device_ptr.h>
 
 #include "Parse/Parse.h"
 #include "Utils/Utils.h"
@@ -30,7 +32,7 @@
 #define TAU 0.0
 #define ALPHA 0.85
 
-#define MAX_B 512
+#define MAX_B 1024
 #define MAX_T 1024
 
 #define MAX_ITER 200
@@ -44,7 +46,6 @@ bool check_error(T *e, const T error, const unsigned DIMV) {
     }
     return true;
 }
-
 
 template<typename T>
 void to_device_csc(T *csc_val, int *csc_non_zero, int *csc_col_idx, const csc_t src) {
@@ -299,7 +300,7 @@ int omain() {
     while (!converged && iterations < MAX_ITER) {
 
         spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
-        // part_spmv <<< MAX_B, MAX_T >>> (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
+        //part_spmv <<< MAX_B, MAX_T >>> (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
         scale << < MAX_B, MAX_T >> > (d_spmv_res, (num_type) ALPHA, DIM);
 
         // Figure out a way to do the dot product inside GPU
@@ -308,7 +309,7 @@ int omain() {
         shift << < MAX_B, MAX_T >> > (d_spmv_res, static_cast<num_type> ((1.0 - ALPHA) / DIM + (ALPHA / DIM) * res_v), DIM);
 
         compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
-        // part_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, d_update_bitmap, DIM);
+        //part_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, d_update_bitmap, DIM);
 
         cudaDeviceSynchronize();
 

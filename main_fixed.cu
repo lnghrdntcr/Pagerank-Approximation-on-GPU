@@ -22,20 +22,20 @@
 #define TAU 0.0
 #define ALPHA 0.85
 
-#define MAX_B 512
+#define MAX_B 1024
 #define MAX_T 1024
 
 #define MAX_ITER 200
 
-#define num_type unsigned
+#define num_type long long unsigned
 
 // 00.00 0000 0000 0000 0000 0000 0000 0000
-#define SCALE 30
+#define SCALE 62
 
 __host__
 __device__
 inline num_type d_to_fixed(double x) {
-    return x * ((double) (1 << SCALE));
+    return x * ((double) ((num_type)1 << SCALE));
 }
 
 __host__

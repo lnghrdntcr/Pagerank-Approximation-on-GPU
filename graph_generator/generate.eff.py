@@ -42,10 +42,10 @@ def format_file(filename, values):
         f.write('{}\n'.format(e))
 
 
-DIM = 4000
+DIM = 7000000
 write_log("DIM = {}".format(DIM))
 
-PERC_SPARSE = 0.000001
+PERC_SPARSE = 0.0000000001
 write_log("PERC_SPARSE = {}% => expecting {} elements per column".format(str((1 - PERC_SPARSE)*100), DIM * PERC_SPARSE))
 
 write_log("Generating graph...")

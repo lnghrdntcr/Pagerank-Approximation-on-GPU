@@ -17,7 +17,7 @@ typedef struct csc_t {
 } csc_t;
 
 typedef struct csc_fixed_t {
-    std::vector<unsigned> val;
+    std::vector<long long unsigned> val;
     std::vector<int> non_zero;
     std::vector<int> col_idx;
 } csc_fixed_t;
