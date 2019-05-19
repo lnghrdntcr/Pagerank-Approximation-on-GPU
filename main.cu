@@ -14,20 +14,12 @@
 #include <vector>
 #include <algorithm>
 
-#include <cuda.h>
-#include <cuda_runtime_api.h>
-
-#ifdef __clang__
-#include <cuda_builtin_vars.h>
-#endif
-
 #include <thrust/inner_product.h>
-#include <thrust/count.h>
-#include <thrust/execution_policy.h>
-#include <thrust/device_ptr.h>
 
 #include "Parse/Parse.h"
 #include "Utils/Utils.h"
+
+//#include "graphblas/graphblas.hpp"
 
 #define TAU 0.0
 #define ALPHA 0.85
@@ -209,7 +201,7 @@ T2 dot(size_t n, T1 *x, T2 *y) {
     return thrust::inner_product(thrust::device, x, x + n, y, (T2) 0.0);
 }
 
-int omain() {
+int main() {
 
 
     /**
@@ -230,7 +222,7 @@ int omain() {
     bool     *d_dangling_bitmap;
     bool     *d_update_bitmap;
 
-    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur");
+    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/scf");
 
     const unsigned NON_ZERO = csc_matrix.val.size();
     const unsigned DIM = csc_matrix.non_zero.size() - 1;
@@ -274,33 +266,14 @@ int omain() {
     cudaMemcpy(pr, d_pr, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
     cudaMemcpy(error, d_error, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
 
-
-    /**
-    * TEST
-    */
-
-    /*   bool *dbm;
-
-       cudaMallocHost(&dbm, DIM * sizeof(bool));
-       cudaMemcpy(dbm, d_dangling_bitmap, DIM * sizeof(bool), cudaMemcpyDeviceToHost);
-
-       for (int j = 0; j < DIM; ++j) {
-           std::cout << dbm[j] << std::endl;
-       }*/
-
-
-    /**
-     * END TEST
-     */
-
     std::cout << "Beginning pagerank..." << std::endl;
 
     int iterations = 0;
     bool converged = false;
     while (!converged && iterations < MAX_ITER) {
 
-        spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
-        //part_spmv <<< MAX_B, MAX_T >>> (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
+        // spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
+        part_spmv <<< MAX_B, MAX_T >>> (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
         scale << < MAX_B, MAX_T >> > (d_spmv_res, (num_type) ALPHA, DIM);
 
         // Figure out a way to do the dot product inside GPU
@@ -308,8 +281,8 @@ int omain() {
 
         shift << < MAX_B, MAX_T >> > (d_spmv_res, static_cast<num_type> ((1.0 - ALPHA) / DIM + (ALPHA / DIM) * res_v), DIM);
 
-        compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
-        //part_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, d_update_bitmap, DIM);
+        // compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
+        part_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, d_update_bitmap, DIM);
 
         cudaDeviceSynchronize();
 
@@ -351,7 +324,7 @@ int omain() {
     std::cout << "Checking results..." << std::endl;
 
     std::ifstream results;
-    results.open("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur/results.txt");
+    results.open("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/scf/results.txt");
 
     int i = 0;
     int tmp = 0;

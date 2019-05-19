@@ -44,6 +44,7 @@ inline num_type fixed_mult(num_type x, num_type y){
     return (((x) >> (SCALE / 2)) * ((y) >> (SCALE / 2))) >> 0;
 }
 
+
 csc_fixed_t to_fixed_csc(csc_t m) {
 
     csc_fixed_t fixed_csc;
@@ -59,7 +60,6 @@ csc_fixed_t to_fixed_csc(csc_t m) {
     return fixed_csc;
 
 }
-
 
 template<typename T>
 void to_device_csc(T *csc_val, int *csc_non_zero, int *csc_col_idx, const csc_fixed_t src) {
@@ -106,7 +106,36 @@ void d_fixed_spmv(T *Y, T *pr, T *csc_val, int *csc_non_zero, int *csc_col_idx, 
     }
 }
 
-// Until I figure out how memset works
+template<typename T>
+__global__
+void d_update_fixed_spmv(T *Y, T *pr, T *csc_val, int *csc_non_zero, int *csc_col_idx, bool *update_bitmap, const int DIMV) {
+
+    int init             = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride           = blockDim.x * gridDim.x;
+    const T initial_zero = d_to_fixed(0.0);
+
+
+    for (int i = init; i < DIMV; i += stride) {
+
+        int begin = csc_non_zero[i];
+        int end = csc_non_zero[i + 1];
+
+        if(update_bitmap[i] == true) {
+
+            T acc = initial_zero;
+
+            for (int j = begin; j < end; ++j) {
+                acc += fixed_mult(csc_val[j], pr[csc_col_idx[j]]);
+            }
+
+            Y[i] = acc;
+
+        }
+
+    }
+}
+
+// Until I figure out how cudaMemset works
 template<typename T>
 __global__
 void d_set_value(T *v, const T value, const unsigned DIMV) {
@@ -153,6 +182,23 @@ unsigned d_fixed_abs(const unsigned x, const unsigned y) {
     else return y - x;
 }
 
+
+template<typename T>
+__global__
+void d_update_fixed_compute_error(T *error, T *v1, T *v2, bool *update_bitmap, const T max_err, const unsigned DIMV) {
+
+    int init = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+
+    for (int i = init; i < DIMV; i += stride) {
+        if(update_bitmap[i]){
+            error[i] = d_fixed_abs(v1[i], v2[i]);
+            update_bitmap[i] = error[i] > max_err;
+        }
+    }
+
+}
+
 template<typename T>
 __global__
 void d_fixed_compute_error(T *error, T *v1, T *v2, const unsigned DIMV) {
@@ -174,26 +220,9 @@ bool check_error(T *e, const T error, const unsigned DIMV) {
     return true;
 }
 
-template <typename T1, typename T2>
-T1 h_fixed_dot(T1 *v1, T2 *v2, const unsigned DIMV){
-
-    T1 *h_v1;
-    T2 *h_v2;
-
-    T1 res = d_to_fixed(0.0);
-
-    cudaMallocHost(&h_v1, sizeof(T1) * DIMV);
-    cudaMallocHost(&h_v2, sizeof(T2) * DIMV);
-
-    for (int i = 0; i < DIMV; ++i) {
-        res += fixed_mult(h_v1[i], h_v2[i]);
-    }
-
-    cudaFree(&h_v1);
-    cudaFree(&h_v2);
-
-    return res;
-
+template<typename T1, typename T2>
+T2 d_fixed_dot(T1 *x, T2 *y, size_t n) {
+    return thrust::inner_product(thrust::device, x, x + n, y, (T2) 0);
 }
 
 template<typename T>
@@ -213,7 +242,7 @@ void debug_print(char *name, T *v, const unsigned DIMV) {
 
 }
 
-int main() {
+int omain() {
 
     /**
      * HOST
@@ -233,7 +262,7 @@ int main() {
     bool *d_dangling_bitmap;
     bool *d_update_bitmap;
 
-    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur");
+    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/scf");
     csc_fixed_t fixed_csc = to_fixed_csc(csc_matrix);
 
     const unsigned NON_ZERO = csc_matrix.val.size();
@@ -280,35 +309,38 @@ int main() {
 
     std::cout << "Beginning pagerank" << std::endl;
 
-    int iterations = 0;
-    bool converged = false;
-    const num_type F_ALPHA = d_to_fixed(ALPHA);
-    const num_type F_SHIFT = d_to_fixed((1.0 - ALPHA) / DIM);
+    int iterations                  = 0;
+    bool converged                  = false;
+    const num_type F_ALPHA          = d_to_fixed(ALPHA);
+    const num_type F_TAU            = d_to_fixed(TAU);
+    const num_type F_SHIFT          = d_to_fixed((1.0 - ALPHA) / DIM);
     const num_type F_DANGLING_SCALE = d_to_fixed(ALPHA / DIM);
 
     while (!converged && iterations < MAX_ITER) {
 
         // SpMV
         d_fixed_spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
+        // d_update_fixed_spmv<< <MAX_B, MAX_T>> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
 
         // Scale
         d_fixed_scale << < MAX_B, MAX_T >> > (d_spmv_res, F_ALPHA, DIM);
 
         // Dangling nodes handler
-        num_type res_v = h_fixed_dot(d_pr, d_dangling_bitmap, DIM);
+        num_type res_v = d_fixed_dot(d_pr, d_dangling_bitmap, DIM);
 
         // Shift
         d_fixed_shift << < MAX_B, MAX_T >> > (d_spmv_res, ((num_type) F_SHIFT + fixed_mult(F_DANGLING_SCALE, res_v)), DIM);
 
         // Compute error
         d_fixed_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
+        //d_update_fixed_compute_error << <MAX_B, MAX_T>> > (d_error, d_spmv_res, d_pr, d_update_bitmap, F_TAU, DIM);
 
         cudaDeviceSynchronize();
 
         cudaMemcpy(error, d_error, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
         cudaMemcpy(d_pr, d_spmv_res, DIM * sizeof(num_type), cudaMemcpyDeviceToDevice);
 
-        converged = check_error(error, d_to_fixed(TAU), DIM);
+        converged = check_error(error, F_TAU, DIM);
 
         // debug_print("d_pr", d_pr, DIM);
         iterations++;
@@ -326,7 +358,6 @@ int main() {
     for (int i = 0; i < DIM; ++i) {
         sorted_pr.push_back({i, pr[i]});
         pr_map[i] = pr[i];
-        //std::cout << "Index: " << i << " => " << pr_map[i] << std::endl;
     }
 
 
@@ -345,7 +376,7 @@ int main() {
     std::cout << "Checking results..." << std::endl;
 
     std::ifstream results;
-    results.open("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur/results.txt");
+    results.open("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/scf/results.txt");
 
     int i = 0;
     int tmp = 0;
