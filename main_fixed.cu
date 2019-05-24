@@ -242,7 +242,7 @@ void debug_print(char *name, T *v, const unsigned DIMV) {
 
 }
 
-int omain() {
+int main() {
 
     /**
      * HOST

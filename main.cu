@@ -201,7 +201,7 @@ T2 dot(size_t n, T1 *x, T2 *y) {
     return thrust::inner_product(thrust::device, x, x + n, y, (T2) 0.0);
 }
 
-int main() {
+int omain() {
 
 
     /**

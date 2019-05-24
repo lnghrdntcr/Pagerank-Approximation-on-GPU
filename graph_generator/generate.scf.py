@@ -1,5 +1,4 @@
 import networkx as nx
-import matplotlib.pyplot as plt
 
 from threading import Thread
 import numpy as np
@@ -26,7 +25,7 @@ m = [[1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1],
 
 
 def to_digraph(G):
-    H = nx.Graph()
+    H = nx.DiGraph()
     for u, v, d in G.edges(data=True):
         H.add_edge(u, v)
 
@@ -42,6 +41,10 @@ def write_log(message, endl='\n'):
 
     f.close()
 
+def remove_self_loops(g):
+    for u, v in list(g.edges()):
+        if u == v:
+            g.remove_edge(u, v)
 
 def format_file(filename, values):
 
@@ -52,19 +55,44 @@ def format_file(filename, values):
         f.write('{}\n'.format(e))
 
 
-DIM = 100
+DIM = 1e6
 
-#PERC_SPARSE = 0.000000001
+write_log("Generating graph...", endl='')
+start = time()
+g = nx.scale_free_graph(DIM, seed=42)
+sm = nx.stochastic_graph(g)
 
-#write_log("Generating graph...")
-print("Generating graph")
-g = nx.scale_free_graph(DIM, seed=1)
+write_log("DONE [{:.10f}]s".format(time() - start))
 
-print("Formatting to stochastic matrix")
-g = to_digraph(g)
-g = g.to_directed()
+write_log("Formatting to 0 1 matrix...", endl='')
+start = time()
+cp = nx.to_numpy_array(g)
 
-pr = nx.pagerank(g)
+# Format to 0 / 1 matrix
+for idx, el in enumerate(cp):
+    for idy, cur in enumerate(el):
+        if cp[idx][idy] > 0:
+            cp[idx][idy] = 1.0
+
+g = nx.from_numpy_matrix(cp)
+write_log("DONE [{:.10f}]s".format(time() - start))
+
+write_log("Formatting to stochastic_graph", endl='')
+start = time()
+g = nx.to_directed(g)
+remove_self_loops(g)
+g = nx.stochastic_graph(g)
+
+write_log("DONE [{:.10f}]s".format(time() - start))
+
+####################COMPUTING PAGERANK#########################
+write_log("Computing pagerank", endl='')
+start = time()
+pr = nx.pagerank(g, alpha=0.85, max_iter=200, tol=10**-12)
+
+write_log("DONE [{:.10f}]s".format(time() - start))
+
+########################END COMPUTING PAGERANK#################
 
 write_log("Sorting and dumping pr values...", endl='')
 start = time()
@@ -76,12 +104,23 @@ f = open('generated_csc/scf/results.txt', 'w+')
 for el in pr_sorted:
     f.write(str(el[0]) + '\n')
 
-print("Formatting to csc")
+write_log("DONE [{:.10f}]s".format(time() - start))
+
+
+write_log("Formatting matrix in stochastic form...", endl='')
+start = time()
+
 g = nx.stochastic_graph(g, copy=True)
+
+write_log("DONE [{:.10f}]s".format(time() - start))
+
+write_log("Converting matrix in csc", endl='')
+start = time()
 
 csc = nx.to_scipy_sparse_matrix(g, format='csc')
 
-write_log("DONE [{}s]".format(time() - start))
+
+write_log("DONE [{:.10f}]s".format(time() - start))
 
 data = csc.data
 indices_col = csc.indices
@@ -103,7 +142,5 @@ data_t.join()
 col_idx_t.join()
 non_zero_t.join()
 
-write_log("DONE [{}s]".format(time() - start))
-
-
+write_log("DONE [{:.10f}]s".format(time() - start))
 
