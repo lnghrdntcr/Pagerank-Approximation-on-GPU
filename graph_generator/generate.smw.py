@@ -55,7 +55,7 @@ def format_file(filename, values):
         f.write('{}\n'.format(e))
 
 
-DIM = int(1e4)
+DIM = 4*int(1e4)
 
 write_log("Generating graph...", endl='')
 start = time()

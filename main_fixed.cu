@@ -1,10 +1,6 @@
 // Created by Francesco Sgherzi on 15/04/19.
 //
 
-// TODO: Check graphblast
-// TODO: Implement spmv with bitmask graphblast
-// TODO: Different data types.
-
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
@@ -242,7 +238,7 @@ void debug_print(char *name, T *v, const unsigned DIMV) {
 
 }
 
-int main() {
+int bmain() {
 
     /**
      * HOST

@@ -1,10 +1,6 @@
 // Created by Francesco Sgherzi on 15/04/19.
 //
 
-// TODO: Implement spmv with bitmask graphblast
-// TODO: Different data types.
-// TODO: multiply pr value by int max to use fixed point (?)
-
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
@@ -18,8 +14,6 @@
 
 #include "Parse/Parse.h"
 #include "Utils/Utils.h"
-
-//#include "graphblas/graphblas.hpp"
 
 #define TAU 0.0
 #define ALPHA 0.85
@@ -201,7 +195,7 @@ T2 dot(size_t n, T1 *x, T2 *y) {
     return thrust::inner_product(thrust::device, x, x + n, y, (T2) 0.0);
 }
 
-int omain() {
+int amain() {
 
 
     /**
