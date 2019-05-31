@@ -29,14 +29,16 @@
 #define SCALE 62
 
 __host__
-__device__
+        __device__
+
 inline num_type d_to_fixed(double x) {
-    return x * ((double) ((num_type)1 << SCALE));
+    return x * ((double) ((num_type) 1 << SCALE));
 }
 
 __host__
-__device__
-inline num_type fixed_mult(num_type x, num_type y){
+        __device__
+
+inline num_type fixed_mult(num_type x, num_type y) {
     return (((x) >> (SCALE / 2)) * ((y) >> (SCALE / 2))) >> 0;
 }
 
@@ -104,29 +106,25 @@ void d_fixed_spmv(T *Y, T *pr, T *csc_val, int *csc_non_zero, int *csc_col_idx, 
 
 template<typename T>
 __global__
-void d_update_fixed_spmv(T *Y, T *pr, T *csc_val, int *csc_non_zero, int *csc_col_idx, bool *update_bitmap, const int DIMV) {
+void
+d_update_fixed_spmv(T *Y, T *pr, T *csc_val, int *csc_non_zero, int *csc_col_idx, bool *update_bitmap, const int DIMV) {
 
-    int init             = blockIdx.x * blockDim.x + threadIdx.x;
-    int stride           = blockDim.x * gridDim.x;
+    int init = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
     const T initial_zero = d_to_fixed(0.0);
 
 
-    for (int i = init; i < DIMV; i += stride) {
+    for (int i = init; i < DIMV && update_bitmap[i]; i += stride) {
 
         int begin = csc_non_zero[i];
         int end = csc_non_zero[i + 1];
+        T acc = initial_zero;
 
-        if(update_bitmap[i] == true) {
-
-            T acc = initial_zero;
-
-            for (int j = begin; j < end; ++j) {
-                acc += fixed_mult(csc_val[j], pr[csc_col_idx[j]]);
-            }
-
-            Y[i] = acc;
-
+        for (int j = begin; j < end; ++j) {
+            acc += fixed_mult(csc_val[j], pr[csc_col_idx[j]]);
         }
+
+        Y[i] = acc;
 
     }
 }
@@ -186,11 +184,9 @@ void d_update_fixed_compute_error(T *error, T *v1, T *v2, bool *update_bitmap, c
     int init = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = blockDim.x * gridDim.x;
 
-    for (int i = init; i < DIMV; i += stride) {
-        if(update_bitmap[i]){
-            error[i] = d_fixed_abs(v1[i], v2[i]);
-            update_bitmap[i] = error[i] > max_err;
-        }
+    for (int i = init; i < DIMV && update_bitmap[i]; i += stride) {
+        error[i] = d_fixed_abs(v1[i], v2[i]);
+        update_bitmap[i] = error[i] >= max_err;
     }
 
 }
@@ -238,7 +234,7 @@ void debug_print(char *name, T *v, const unsigned DIMV) {
 
 }
 
-int bmain() {
+int main() {
 
     /**
      * HOST
@@ -305,18 +301,18 @@ int bmain() {
 
     std::cout << "Beginning pagerank" << std::endl;
 
-    int iterations                  = 0;
-    bool converged                  = false;
-    const num_type F_ALPHA          = d_to_fixed(ALPHA);
-    const num_type F_TAU            = d_to_fixed(TAU);
-    const num_type F_SHIFT          = d_to_fixed((1.0 - ALPHA) / DIM);
+    int iterations = 0;
+    bool converged = false;
+    const num_type F_ALPHA = d_to_fixed(ALPHA);
+    const num_type F_TAU = d_to_fixed(TAU);
+    const num_type F_SHIFT = d_to_fixed((1.0 - ALPHA) / DIM);
     const num_type F_DANGLING_SCALE = d_to_fixed(ALPHA / DIM);
 
     while (!converged && iterations < MAX_ITER) {
 
         // SpMV
         d_fixed_spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
-        // d_update_fixed_spmv<< <MAX_B, MAX_T>> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
+        //d_update_fixed_spmv<< <MAX_B, MAX_T>> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
 
         // Scale
         d_fixed_scale << < MAX_B, MAX_T >> > (d_spmv_res, F_ALPHA, DIM);
@@ -325,7 +321,8 @@ int bmain() {
         num_type res_v = d_fixed_dot(d_pr, d_dangling_bitmap, DIM);
 
         // Shift
-        d_fixed_shift << < MAX_B, MAX_T >> > (d_spmv_res, ((num_type) F_SHIFT + fixed_mult(F_DANGLING_SCALE, res_v)), DIM);
+        d_fixed_shift << < MAX_B, MAX_T >> >
+                                  (d_spmv_res, ((num_type) F_SHIFT + fixed_mult(F_DANGLING_SCALE, res_v)), DIM);
 
         // Compute error
         d_fixed_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
@@ -357,14 +354,12 @@ int bmain() {
     }
 
 
-
     std::sort(sorted_pr.begin(), sorted_pr.end(),
               [](const std::pair<int, num_type> &l, const std::pair<int, num_type> &r) {
                   if (l.second != r.second)return l.second > r.second;
                   else return l.first > r.first;
               });
 
-    // print the vector
     for (auto const &pair: sorted_pr) {
         sorted_pr_idxs.push_back(pair.first);
     }

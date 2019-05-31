@@ -5,7 +5,7 @@ import numpy as np
 from scipy.sparse import csc_matrix
 from time import time
 from tqdm import tqdm
-
+from scipy.io import mmwrite
 m = [[1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1],
     [0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1],
     [0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0],
@@ -55,11 +55,11 @@ def format_file(filename, values):
         f.write('{}\n'.format(e))
 
 
-DIM = 4*int(1e4)
+DIM = int(1e4)
 
 write_log("Generating graph...", endl='')
 start = time()
-g = nx.watts_strogatz_graph(DIM, 15, 0.2)
+g = nx.watts_strogatz_graph(DIM, 10, 0.2)
 sm = nx.stochastic_graph(g.to_directed())
 
 write_log("DONE [{:.10f}]s".format(time() - start))
@@ -67,6 +67,7 @@ write_log("DONE [{:.10f}]s".format(time() - start))
 write_log("Formatting to 0 1 matrix...", endl='')
 start = time()
 cp = nx.to_numpy_array(g)
+
 
 # Format to 0 / 1 matrix
 for idx, el in tqdm(enumerate(cp)):

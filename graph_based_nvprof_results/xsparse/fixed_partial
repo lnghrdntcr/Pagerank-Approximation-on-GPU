@@ -1,0 +1,53 @@
+Parsing /home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur
+
+FEATURES: 
+	Number of non zero elements: 249317
+	Number of nodes: 5000000
+	Sparseness: 99.9924%
+
+==3501== NVPROF is profiling process 3501, command: ./Approximate_PR
+Initializing device memory
+Initializing PR, Error, dangling bitmap, update bitmap vecors
+Beginning pagerank
+Pagerank converged after 6 iterations
+Checking results...
+Percentage of error: 0.00212%
+
+End of computation! Freeing memory...
+Done.
+==3501== Profiling application: ./Approximate_PR
+==3501== Profiling result:
+            Type  Time(%)      Time     Calls       Avg       Min       Max  Name
+ GPU activities:   52.43%  27.559ms        15  1.8372ms  1.0240us  3.1389ms  [CUDA memcpy DtoH]
+                   11.89%  6.2488ms         6  1.0415ms  838.18us  2.0379ms  void d_update_fixed_compute_error<__int64>(__int64*, __int64*, __int64*, bool*, __int64, unsigned int)
+                    8.27%  4.3470ms         6  724.50us  720.29us  727.52us  void d_update_fixed_spmv<__int64>(__int64*, __int64*, __int64*, int*, int*, bool*, int)
+                    6.16%  3.2366ms         6  539.43us  534.18us  545.96us  [CUDA memcpy DtoD]
+                    6.07%  3.1884ms         6  531.40us  528.32us  535.49us  void d_fixed_scale<__int64>(__int64*, __int64, unsigned int)
+                    6.02%  3.1654ms         6  527.57us  523.17us  533.03us  void d_fixed_shift<__int64>(__int64*, __int64, unsigned int)
+                    4.37%  2.2992ms         3  766.40us  79.041us  2.0578ms  [CUDA memcpy HtoD]
+                    3.21%  1.6862ms         6  281.04us  279.46us  282.91us  void thrust::cuda_cub::cub::DeviceReduceKernel<thrust::cuda_cub::cub::DeviceReducePolicy<bool, int, thrust::plus<bool>>::Policy600, thrust::cuda_cub::transform_pair_of_input_iterators_t<bool, __int64*, bool*, thrust::multiplies<bool>>, bool*, int, thrust::plus<bool>>(int, bool, thrust::plus<bool>, thrust::cuda_cub::cub::GridEvenShare<bool>, thrust::cuda_cub::cub::DeviceReducePolicy<bool, int, thrust::plus<bool>>::Policy600)
+                    1.00%  523.62us         2  261.81us  261.76us  261.86us  void d_set_value<__int64>(__int64*, __int64, unsigned int)
+                    0.36%  189.12us         1  189.12us  189.12us  189.12us  d_fixed_set_dangling_bitmap(bool*, int*, unsigned int)
+                    0.20%  104.80us         2  52.400us  52.128us  52.672us  void d_set_value<bool>(bool*, bool, unsigned int)
+                    0.04%  19.040us         6  3.1730us  2.6560us  4.1600us  void thrust::cuda_cub::cub::DeviceReduceSingleTileKernel<thrust::cuda_cub::cub::DeviceReducePolicy<bool, int, thrust::plus<bool>>::Policy600, bool*, bool*, int, thrust::plus<bool>, bool>(int, bool, thrust::plus<bool>, thrust::cuda_cub::cub::DeviceReducePolicy<bool, int, thrust::plus<bool>>::Policy600, bool*)
+      API calls:   85.63%  319.71ms         2  159.85ms  9.2618ms  310.45ms  cudaHostAlloc
+                    8.31%  31.034ms        18  1.7241ms  12.022us  3.8857ms  cudaMemcpy
+                    5.52%  20.613ms        12  1.7178ms  1.3498ms  2.5594ms  cudaDeviceSynchronize
+                    0.22%  812.27us        14  58.018us  7.0070us  135.27us  cudaMalloc
+                    0.12%  432.36us        97  4.4570us     192ns  231.90us  cuDeviceGetAttribute
+                    0.07%  265.91us        41  6.4850us  3.9470us  26.443us  cudaLaunchKernel
+                    0.06%  236.19us         1  236.19us  236.19us  236.19us  cuDeviceTotalMem
+                    0.02%  75.583us         1  75.583us  75.583us  75.583us  cuDeviceGetName
+                    0.02%  66.552us        14  4.7530us     404ns  28.130us  cudaFree
+                    0.02%  65.193us         6  10.865us  9.7870us  13.438us  cudaMemcpyAsync
+                    0.01%  27.007us        12  2.2500us  1.9760us  3.5070us  cudaFuncGetAttributes
+                    0.00%  8.7620us         6  1.4600us  1.2560us  2.1320us  cudaStreamSynchronize
+                    0.00%  7.3580us        12     613ns     430ns  1.1850us  cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags
+                    0.00%  4.7800us        12     398ns     280ns     993ns  cudaGetDevice
+                    0.00%  4.5150us         1  4.5150us  4.5150us  4.5150us  cuDeviceGetPCIBusId
+                    0.00%  4.4970us        12     374ns     255ns     782ns  cudaDeviceGetAttribute
+                    0.00%  2.2200us         3     740ns     186ns  1.6980us  cuDeviceGetCount
+                    0.00%  1.7860us        12     148ns     117ns     206ns  cudaPeekAtLastError
+                    0.00%  1.0490us         6     174ns     145ns     254ns  cudaGetLastError
+                    0.00%     923ns         2     461ns     202ns     721ns  cuDeviceGet
+                    0.00%     320ns         1     320ns     320ns     320ns  cuDeviceGetUuid
