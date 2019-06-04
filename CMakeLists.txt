@@ -5,7 +5,4 @@ set(CMAKE_CXX_FLAGS "-lboost_program_options")
 set(CMAKE_CUDA_COMPILER  /opt/cuda/bin/nvcc)
 set(CMAKE_CXX_STANDARD 17)
 enable_language("CUDA")
-# Executables removed
-# np_main.cu main.cu
-# main_fixed.cu
-add_executable(Approximate_PR Parse/Parse.h Parse/Parse.cpp Matrix/Matrix.cpp Matrix/Matrix.h Utils/Utils.cpp Utils/Utils.h main_load_balanced.cu)
+add_executable(Approximate_PR Parse/Parse.h Parse/Parse.cpp Matrix/Matrix.cpp Matrix/Matrix.h Utils/Utils.cpp Utils/Utils.h main_fixed.cu)

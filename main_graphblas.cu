@@ -13,6 +13,19 @@
 #include <thrust/inner_product.h>
 #include <thrust/device_vector.h>
 
+// BEGIN: GRAPHBLAST IMPORT
+#define GRB_USE_CUDA
+#include <graphblas/graphblas.hpp>
+#include <graphblas/descriptor.hpp>
+#include <cuda.h>
+#include <cusparse.h>
+
+#include <moderngpu.cuh>
+#include <cub.cuh>
+#include "graphblas/backend/cuda/kernels/kernels.hpp"
+// END: GRAPHBLAST IMPORT
+
+
 #include "Parse/Parse.h"
 #include "Utils/Utils.h"
 
@@ -68,6 +81,7 @@ void spmv(T *Y, T *pr, T *csc_val, int *csc_non_zero, int *csc_col_idx, const un
     int stride = blockDim.x * gridDim.x;
 
     if (init < DIMV) {
+        #pragma unroll
         for (int i = init; i < DIMV; i += stride) {
 
             int begin = csc_non_zero[i];
@@ -111,7 +125,47 @@ void part_spmv(T *Y, T *pr, T *csc_val, int *csc_non_zero, int *csc_col_idx, boo
     }
 
 }
+/*
 
+template <typename T>
+__global__
+void spmv_csr_vector_kernel(const int num_rows,
+                            const int *ptr,
+                            const int *indices,
+                            const T *data,
+                            const T *x,
+                            T *y) {
+    printf("CALLED");
+    extern __shared__ double vals[];
+    int thread_id = blockDim.x * blockIdx.x + threadIdx.x;
+    int warp_id = thread_id / 32;
+    int lane = thread_id & (32 - 1);
+    int row = warp_id;
+    if (row < num_rows) {
+
+        int row_start = ptr[row];
+        int row_end = ptr[row + 1];
+
+        //  compute  running  sum  per  thread
+        vals[threadIdx.x] = 0.0;
+        for (int jj = row_start + lane; jj < row_end; jj += 32)
+            vals[threadIdx.x] += data[jj] * x[indices[jj]];
+
+        //  parallel  reduction  in  shared  memory
+        if (lane < 16) vals[threadIdx.x] += vals[threadIdx.x + 16];
+        if (lane < 8) vals[threadIdx.x] += vals[threadIdx.x + 8];
+        if (lane < 4) vals[threadIdx.x] += vals[threadIdx.x + 4];
+        if (lane < 2) vals[threadIdx.x] += vals[threadIdx.x + 2];
+        if (lane < 1) vals[threadIdx.x] += vals[threadIdx.x + 1];
+
+        if (lane == 0) {
+            y[row] += vals[threadIdx.x];
+            printf("%d\n", y[row]);
+        }
+
+    }
+}
+*/
 
 template<typename T>
 __global__
@@ -208,8 +262,9 @@ int main() {
     int *d_csc_col_idx;
     bool *d_dangling_bitmap;
     bool *d_update_bitmap;
+    Descriptor* desc();
 
-    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/smw");
+    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur");
 
     const unsigned NON_ZERO = csc_matrix.val.size();
     const unsigned DIM = csc_matrix.non_zero.size() - 1;
@@ -248,10 +303,22 @@ int main() {
 
     d_set_dangling_bitmap << < MAX_B, MAX_T >> > (d_dangling_bitmap, d_csc_col_idx, NON_ZERO);
 
-
     // Copy them back to their host vectors
     cudaMemcpy(pr, d_pr, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
     cudaMemcpy(error, d_error, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
+
+    std::cout << "Setting GraphBlast Properties" << std::endl;
+    // graphblas::backend::DenseVector<num_type> grb_dense_vector(DIM);
+    // graphblas::backend::Vector<bool> mask(DIM);
+    // graphblas::backend::SparseMatrix<num_type> grb_sparse_matrix;
+
+    // grb_dense_vector.build(d_spmv_res, DIM);
+    // grb_sparse_matrix.build(d_csc_non_zero, d_csc_non_zero, d_csc_val, DIM);
+
+    /*for (int i = 0; i < DIM; ++i) {
+        std::cout << grb_sparse_matrix[i] << std::endl;
+        if(i > 30) break;
+    }*/
 
     std::cout << "Beginning pagerank..." << std::endl;
 
@@ -261,6 +328,8 @@ int main() {
 
         spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
         //part_spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
+
+        // spmv_csr_vector_kernel<<<MAX_B, MAX_T>>>(DIM, d_csc_non_zero, d_csc_col_idx, d_csc_val, d_pr, d_spmv_res);
         scale << < MAX_B, MAX_T >> > (d_spmv_res, (num_type) ALPHA, DIM);
 
         // Figure out a way to do the dot product inside GPU
@@ -312,7 +381,7 @@ int main() {
     std::cout << "Checking results..." << std::endl;
 
     std::ifstream results;
-    results.open("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/smw/results.txt");
+    results.open("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur/results.txt");
 
     int i = 0;
     int tmp = 0;
@@ -322,7 +391,7 @@ int main() {
         // std::cout << "reading " << tmp << std::endl;
         if (tmp != sorted_pr_idxs[i]) {
             errors++;
-            // std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => " << (num_type) pr_map[sorted_pr_idxs[i]] << std::endl;
+            //std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => " << (num_type) pr_map[sorted_pr_idxs[i]] << std::endl;
         }
         i++;
     }

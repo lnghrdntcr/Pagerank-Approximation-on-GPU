@@ -62,7 +62,7 @@ start = time()
 g = nx.watts_strogatz_graph(DIM, 10, 0.2)
 sm = nx.stochastic_graph(g.to_directed())
 
-write_log("DONE [{:.10f}]s".format(time() - start))
+write_log("DONE [{:.10f}]s".format(tim e() - start))
 
 write_log("Formatting to 0 1 matrix...", endl='')
 start = time()
