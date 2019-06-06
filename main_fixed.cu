@@ -5,17 +5,21 @@
 #include <math.h>
 #include <time.h>
 #include <iostream>
+#include <chrono>
 #include <fstream>
 #include <map>
 #include <vector>
 #include <algorithm>
 
 #include <thrust/inner_product.h>
+#include <thrust/device_ptr.h>
+#include <thrust/count.h>
+#include <thrust/execution_policy.h>
 
 #include "Parse/Parse.h"
 #include "Utils/Utils.h"
 
-#define TAU 1e-12
+#define TAU 0.0
 #define ALPHA 0.85
 
 #define MAX_B 1024
@@ -25,19 +29,17 @@
 
 #define num_type long long unsigned
 
-// 00.00 0000 0000 0000 0000 0000 0000 0000
+// 00.00 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000
 #define SCALE 62
 
 __host__
-        __device__
-
+__device__
 inline num_type d_to_fixed(double x) {
     return x * ((double) ((num_type) 1 << SCALE));
 }
 
 __host__
-        __device__
-
+__device__
 inline num_type fixed_mult(num_type x, num_type y) {
     return (((x) >> (SCALE / 2)) * ((y) >> (SCALE / 2))) >> 0;
 }
@@ -214,8 +216,37 @@ bool check_error(T *e, const T error, const unsigned DIMV) {
 
 template<typename T1, typename T2>
 T2 d_fixed_dot(T1 *x, T2 *y, size_t n) {
-    return thrust::inner_product(thrust::device, x, x + n, y, (T2) 0);
+    thrust::device_ptr<T1> d_x(x);
+    thrust::device_ptr<T2> d_y(y);
+    return thrust::inner_product(
+            d_x,
+            d_x + n,
+            d_y,
+            (T2) 0
+    );
 }
+/*
+
+template <typename T1, typename T2>
+T2 h_fixed_dot(size_t n, T1 *x, T2 *y) {
+    T1 *tempx;
+    T2 *tempy;
+
+    cudaMallocHost(&tempx, sizeof(T1) * n);
+    cudaMallocHost(&tempy, sizeof(T2) * n);
+
+    cudaMemcpy(tempx, x, n * sizeof(T1), cudaMemcpyDeviceToHost);
+    cudaMemcpy(tempy, y, n * sizeof(T1), cudaMemcpyDeviceToHost);
+
+    T2 acc = 0.0;
+
+    for (int i = 0; i < n; ++i) {
+        acc += tempx[i]*tempy[i];
+    }
+
+    return acc;
+}
+*/
 
 template<typename T>
 void debug_print(char *name, T *v, const unsigned DIMV) {
@@ -233,6 +264,14 @@ void debug_print(char *name, T *v, const unsigned DIMV) {
     std::cout << "------------------END DEBUG:" << name << "-------------------" << std::endl;
 
 }
+
+
+struct is_over_error {
+    __device__
+    bool operator()(num_type &x) {
+        return x > d_to_fixed(TAU);
+    }
+};
 
 int main() {
 
@@ -254,7 +293,7 @@ int main() {
     bool *d_dangling_bitmap;
     bool *d_update_bitmap;
 
-    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur");
+    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/test");
     csc_fixed_t fixed_csc = to_fixed_csc(csc_matrix);
 
     const unsigned NON_ZERO = csc_matrix.val.size();
@@ -308,37 +347,48 @@ int main() {
     const num_type F_SHIFT = d_to_fixed((1.0 - ALPHA) / DIM);
     const num_type F_DANGLING_SCALE = d_to_fixed(ALPHA / DIM);
 
+    // Start a timer
+    auto pr_clock_start = std::chrono::high_resolution_clock::now();
+
     while (!converged && iterations < MAX_ITER) {
 
         // SpMV
         d_fixed_spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
         //d_update_fixed_spmv<< <MAX_B, MAX_T>> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
+        cudaDeviceSynchronize();
 
         // Scale
         d_fixed_scale << < MAX_B, MAX_T >> > (d_spmv_res, F_ALPHA, DIM);
+        cudaDeviceSynchronize();
 
         // Dangling nodes handler
         num_type res_v = d_fixed_dot(d_pr, d_dangling_bitmap, DIM);
+        //num_type res_v = h_fixed_dot(DIM, d_dangling_bitmap, d_pr);
+        //std::cout << "Thrust: " << res_v << " <-> Host: " << res_v_h << " -> diff: " << h_s_abs(res_v_h, res_v) << std::endl;
+        cudaDeviceSynchronize();
 
         // Shift
-        d_fixed_shift << < MAX_B, MAX_T >> >
-                                  (d_spmv_res, ((num_type) F_SHIFT + fixed_mult(F_DANGLING_SCALE, res_v)), DIM);
+        d_fixed_shift << < MAX_B, MAX_T >> >(d_spmv_res, ((num_type) F_SHIFT + fixed_mult(F_DANGLING_SCALE, res_v)), DIM);
+        cudaDeviceSynchronize();
 
         // Compute error
         d_fixed_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
         //d_update_fixed_compute_error << <MAX_B, MAX_T>> > (d_error, d_spmv_res, d_pr, d_update_bitmap, F_TAU, DIM);
-
         cudaDeviceSynchronize();
 
-        cudaMemcpy(error, d_error, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
+        //cudaMemcpy(error, d_error, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
         cudaMemcpy(d_pr, d_spmv_res, DIM * sizeof(num_type), cudaMemcpyDeviceToDevice);
 
-        converged = check_error(error, F_TAU, DIM);
-
-        // debug_print("d_pr", d_pr, DIM);
+        converged = thrust::count_if(thrust::device, d_error, d_error + DIM, is_over_error()) == 0;
         iterations++;
 
     }
+    // Stop the timer
+    auto pr_clock_end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(pr_clock_end - pr_clock_start).count();
+
+    std::cout << "Pagerank converged after " << duration << " ms" << std::endl;
 
     cudaMemcpy(pr, d_pr, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
 
@@ -367,7 +417,7 @@ int main() {
     std::cout << "Checking results..." << std::endl;
 
     std::ifstream results;
-    results.open("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur/results.txt");
+    results.open("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/test/results.txt");
 
     int i = 0;
     int tmp = 0;
@@ -376,7 +426,11 @@ int main() {
     while (results >> tmp) {
         if (tmp != sorted_pr_idxs[i]) {
             errors++;
-            //std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => " << (num_type) pr_map[sorted_pr_idxs[i]] << std::endl;
+            if(errors <= 10){
+                // Print only the top 10 errors
+                std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => " << (num_type) pr_map[sorted_pr_idxs[i]] << std::endl;
+            }
+
         }
         i++;
     }
@@ -386,9 +440,7 @@ int main() {
     std::cout << "End of computation! Freeing memory..." << std::endl;
 
     cudaFree(&pr);
-
     cudaFree(&error);
-
     cudaFree(&d_pr);
     cudaFree(&d_error);
     cudaFree(&d_spmv_res);

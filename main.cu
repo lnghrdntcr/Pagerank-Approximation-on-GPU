@@ -5,17 +5,21 @@
 #include <math.h>
 #include <time.h>
 #include <iostream>
+#include <chrono>
 #include <fstream>
 #include <map>
 #include <vector>
 #include <algorithm>
 
 #include <thrust/inner_product.h>
+#include <thrust/device_ptr.h>
+#include <thrust/count.h>
+#include <thrust/execution_policy.h>
 
 #include "Parse/Parse.h"
 #include "Utils/Utils.h"
 
-#define TAU 1e-12
+#define TAU 0.0
 #define ALPHA 0.85
 
 #define MAX_B 1024
@@ -189,14 +193,47 @@ void d_set_dangling_bitmap(bool *dangling_bitmap, int *csc_col_idx, const unsign
 
 }
 
-
 template<typename T1, typename T2>
 T2 dot(size_t n, T1 *x, T2 *y) {
-    return thrust::inner_product(thrust::device, x, x + n, y, (T2) 0.0);
+    thrust::device_ptr<T1> d_x(x);
+    thrust::device_ptr<T2> d_y(y);
+    return thrust::inner_product(
+            d_x,
+            d_x + n,
+            d_y,
+            (T2) 0.0
+            );
+}
+
+struct is_over_error {
+    __device__
+    bool operator()(num_type &x) {
+        return x > TAU;
+    }
+};
+
+template <typename T1, typename T2>
+T2 h_dot(size_t n, T1 *x, T2 *y) {
+    T1 *tempx;
+    T2 *tempy;
+
+    cudaMallocHost(&tempx, sizeof(T1) * n);
+    cudaMallocHost(&tempy, sizeof(T2) * n);
+
+    cudaMemcpy(tempx, x, n * sizeof(T1), cudaMemcpyDeviceToHost);
+    cudaMemcpy(tempy, y, n * sizeof(T1), cudaMemcpyDeviceToHost);
+
+    T2 acc = 0.0;
+
+    for (int i = 0; i < n; ++i) {
+        acc += tempx[i]*tempy[i];
+    }
+
+    return acc;
 }
 
 int main() {
-
+    cudaDeviceReset();
 
     /**
      * HOST
@@ -216,7 +253,7 @@ int main() {
     bool     *d_dangling_bitmap;
     bool     *d_update_bitmap;
 
-    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur");
+    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/test");
 
     const unsigned NON_ZERO = csc_matrix.val.size();
     const unsigned DIM = csc_matrix.non_zero.size() - 1;
@@ -264,14 +301,20 @@ int main() {
 
     int iterations = 0;
     bool converged = false;
+
+    auto pr_clock_start = std::chrono::high_resolution_clock::now();
+
     while (!converged && iterations < MAX_ITER) {
 
         spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
         // part_spmv <<< MAX_B, MAX_T >>> (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
         scale << < MAX_B, MAX_T >> > (d_spmv_res, (num_type) ALPHA, DIM);
 
-        // Figure out a way to do the dot product inside GPU
         num_type res_v = dot(DIM, d_dangling_bitmap, d_pr);
+        /*num_type res_v_h = h_dot(DIM, d_dangling_bitmap, d_pr);
+
+        std::cout << "Thrust: " << res_v << " <-> Host: " << res_v_h << " -> diff: " << abs(res_v_h - res_v) << std::endl;
+*/
 
         shift << < MAX_B, MAX_T >> > (d_spmv_res, static_cast<num_type> ((1.0 - ALPHA) / DIM + (ALPHA / DIM) * res_v), DIM);
 
@@ -280,13 +323,19 @@ int main() {
 
         cudaDeviceSynchronize();
 
-        cudaMemcpy(error, d_error, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
         cudaMemcpy(d_pr, d_spmv_res, DIM * sizeof(num_type), cudaMemcpyDeviceToDevice);
 
-        converged = check_error(error, (num_type) TAU, DIM);
+        converged = thrust::count_if(thrust::device, d_error, d_error + DIM, is_over_error()) == 0;
 
         iterations++;
     }
+
+    // Stop the timer
+    auto pr_clock_end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(pr_clock_end - pr_clock_start).count();
+
+    std::cout << "Pagerank converged after " << duration << " ms" << std::endl;
 
     cudaMemcpy(pr, d_pr, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
 
@@ -318,7 +367,7 @@ int main() {
     std::cout << "Checking results..." << std::endl;
 
     std::ifstream results;
-    results.open("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur/results.txt");
+    results.open("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/test/results.txt");
 
     int i = 0;
     int tmp = 0;
@@ -328,7 +377,10 @@ int main() {
         // std::cout << "reading " << tmp << std::endl;
         if (tmp != sorted_pr_idxs[i]) {
             errors++;
-            // std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => " << (num_type) pr_map[sorted_pr_idxs[i]] << std::endl;
+            if(errors <= 10){
+                // Print only the top 10 errors
+                std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => " << (num_type) pr_map[sorted_pr_idxs[i]] << std::endl;
+            }
         }
         i++;
     }

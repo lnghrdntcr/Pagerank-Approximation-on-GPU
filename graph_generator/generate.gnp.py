@@ -8,7 +8,7 @@ from tqdm import tqdm
 m = [[1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1],
     [0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1],
     [0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0],
     [0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 0],
     [1, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0],
@@ -18,13 +18,13 @@ m = [[1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1],
     [1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1],
     [1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 1],
     [0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     [1, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1],
     [0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1]]
 
 def write_log(message, endl='\n'):
     print(message)
-    f = open("log/graph_generator-cur.log".format(str(time())), "a+")
+    f = open("log/graph_generator-test.log".format(str(time())), "a+")
     if endl == '\n':
         f.write("{}{}".format(message, endl))
     else:
@@ -42,22 +42,22 @@ def format_file(filename, values):
         f.write('{}\n'.format(e))
 
 
-DIM = 1000000
+DIM = 10**4
 write_log("DIM = {}".format(DIM))
 
-PERC_SPARSE = 0.0000001
+PERC_SPARSE = 0.1
 write_log("PERC_SPARSE = {}% => expecting {} elements per column".format(str((1 - PERC_SPARSE)*100), DIM * PERC_SPARSE))
 
 write_log("Generating graph...")
 g = nx.fast_gnp_random_graph(DIM, PERC_SPARSE, directed=True)
 
-# The following line is used for curing with parra's matrix
+# The following line is used for testing with parra's matrix
 #g = nx.from_numpy_matrix(np.matrix(m), create_using=nx.DiGraph)
 
-write_log("Computing pagerank... alpha=0.85, max_iter=200, tol=10**-12", endl='')
+write_log("Computing pagerank... alpha=0.85, max_iter=200, tol=1e-12", endl='')
 start = time()
 
-pr = nx.pagerank(g, alpha=0.85, max_iter=200, tol=10**-12)
+pr = nx.pagerank(g, alpha=0.85, max_iter=200, tol=1e-12)
 
 write_log("DONE [{}s]".format(time() - start))
 
@@ -67,7 +67,7 @@ start = time()
 
 pr_sorted = sorted(pr.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
 
-f = open('generated_csc/cur/results.txt', 'w+')
+f = open('generated_csc/test/results.txt', 'w+')
 
 for el in pr_sorted:
     f.write(str(el[0]) + '\n')
@@ -98,9 +98,9 @@ indptr = csc.indptr
 write_log("Dumping matrices: ")
 start = time()
 
-data_t = Thread(target=format_file, args=('generated_csc/cur/val.txt'.format(PERC_SPARSE), data))
-col_idx_t = Thread(target=format_file, args=('generated_csc/cur/col_idx.txt'.format(PERC_SPARSE), indices_col))
-non_zero_t = Thread(target=format_file, args=('generated_csc/cur/non_zero.txt'.format(PERC_SPARSE), indptr))
+data_t = Thread(target=format_file, args=('generated_csc/test/val.txt'.format(PERC_SPARSE), data))
+col_idx_t = Thread(target=format_file, args=('generated_csc/test/col_idx.txt'.format(PERC_SPARSE), indices_col))
+non_zero_t = Thread(target=format_file, args=('generated_csc/test/non_zero.txt'.format(PERC_SPARSE), indptr))
 
 
 data_t.start()
