@@ -23,9 +23,9 @@ using std::vector;
 int main(int argc, char *argv[]) {
     // Input variables, with default values;
     string default_graph_type = "full_undirected";
-    string csc_data_file = "/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur/val.txt";
-    string csc_ptr_file= "/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur/non_zero.txt";
-    string csc_indices_file  = "/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/cur/col_idx.txt";
+    string csc_data_file = "/home/fra/University/HPPS/Approximate-PR/new_ds/gnp/val.txt";
+    string csc_ptr_file= "/home/fra/University/HPPS/Approximate-PR/new_ds/gnp/non_zero.txt";
+    string csc_indices_file  = "/home/fra/University/HPPS/Approximate-PR/new_ds/gnp/col_idx.txt";
 
     int max_iter = 200;
     num_type min_norm_error = 1e-12f;

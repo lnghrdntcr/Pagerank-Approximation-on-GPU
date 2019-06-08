@@ -225,28 +225,6 @@ T2 d_fixed_dot(T1 *x, T2 *y, size_t n) {
             (T2) 0
     );
 }
-/*
-
-template <typename T1, typename T2>
-T2 h_fixed_dot(size_t n, T1 *x, T2 *y) {
-    T1 *tempx;
-    T2 *tempy;
-
-    cudaMallocHost(&tempx, sizeof(T1) * n);
-    cudaMallocHost(&tempy, sizeof(T2) * n);
-
-    cudaMemcpy(tempx, x, n * sizeof(T1), cudaMemcpyDeviceToHost);
-    cudaMemcpy(tempy, y, n * sizeof(T1), cudaMemcpyDeviceToHost);
-
-    T2 acc = 0.0;
-
-    for (int i = 0; i < n; ++i) {
-        acc += tempx[i]*tempy[i];
-    }
-
-    return acc;
-}
-*/
 
 template<typename T>
 void debug_print(char *name, T *v, const unsigned DIMV) {
@@ -265,6 +243,25 @@ void debug_print(char *name, T *v, const unsigned DIMV) {
 
 }
 
+/**
+ * Performs an axpb operation on the x vector inplace
+ * @tparam T Numeric type
+ * @param x The vector to scale and shift
+ * @param a scaling factor
+ * @param b shifting factor
+ * @return
+ */
+template<typename T>
+__global__
+void d_fixed_axpb(T *x, T a, T b, const unsigned DIMV) {
+    int init = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+
+    for (int i = init; i < DIMV; i += stride) {
+        x[i] = fixed_mult(x[i], a) + b;
+    }
+
+}
 
 struct is_over_error {
     __device__
@@ -293,7 +290,7 @@ int main() {
     bool *d_dangling_bitmap;
     bool *d_update_bitmap;
 
-    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/test");
+    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/new_ds/gnp");
     csc_fixed_t fixed_csc = to_fixed_csc(csc_matrix);
 
     const unsigned NON_ZERO = csc_matrix.val.size();
@@ -355,21 +352,23 @@ int main() {
         // SpMV
         d_fixed_spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
         //d_update_fixed_spmv<< <MAX_B, MAX_T>> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
-        cudaDeviceSynchronize();
+        //cudaDeviceSynchronize();
 
         // Scale
-        d_fixed_scale << < MAX_B, MAX_T >> > (d_spmv_res, F_ALPHA, DIM);
-        cudaDeviceSynchronize();
+        //d_fixed_scale << < MAX_B, MAX_T >> > (d_spmv_res, F_ALPHA, DIM);
+        //cudaDeviceSynchronize();
 
         // Dangling nodes handler
         num_type res_v = d_fixed_dot(d_pr, d_dangling_bitmap, DIM);
         //num_type res_v = h_fixed_dot(DIM, d_dangling_bitmap, d_pr);
         //std::cout << "Thrust: " << res_v << " <-> Host: " << res_v_h << " -> diff: " << h_s_abs(res_v_h, res_v) << std::endl;
-        cudaDeviceSynchronize();
+        //cudaDeviceSynchronize();
 
         // Shift
-        d_fixed_shift << < MAX_B, MAX_T >> >(d_spmv_res, ((num_type) F_SHIFT + fixed_mult(F_DANGLING_SCALE, res_v)), DIM);
+        //d_fixed_shift << < MAX_B, MAX_T >> >(d_spmv_res, ((num_type) F_SHIFT + fixed_mult(F_DANGLING_SCALE, res_v)), DIM);
         cudaDeviceSynchronize();
+
+        d_fixed_axpb<<<MAX_T, MAX_B>>>(d_spmv_res, F_ALPHA, ((num_type) F_SHIFT + fixed_mult(F_DANGLING_SCALE, res_v)), DIM);
 
         // Compute error
         d_fixed_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
@@ -417,19 +416,28 @@ int main() {
     std::cout << "Checking results..." << std::endl;
 
     std::ifstream results;
-    results.open("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/test/results.txt");
+    results.open("/home/fra/University/HPPS/Approximate-PR/new_ds/gnp/results.txt");
 
     int i = 0;
     int tmp = 0;
     int errors = 0;
 
+    int prev_left_idx = 0;
+    int prev_right_idx = 0;
+
     while (results >> tmp) {
         if (tmp != sorted_pr_idxs[i]) {
-            errors++;
-            if(errors <= 10){
-                // Print only the top 10 errors
-                std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => " << (num_type) pr_map[sorted_pr_idxs[i]] << std::endl;
+
+            if(prev_left_idx != sorted_pr_idxs[i] || prev_right_idx != tmp){
+                errors++;
+                if(errors <= 10){
+                    // Print only the top 10 errors
+                    std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => " << (num_type) pr_map[sorted_pr_idxs[i]] << std::endl;
+                }
             }
+
+            prev_left_idx = tmp;
+            prev_right_idx = sorted_pr_idxs[i];
 
         }
         i++;

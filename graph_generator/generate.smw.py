@@ -5,7 +5,7 @@ import numpy as np
 from scipy.sparse import csc_matrix
 from time import time
 from tqdm import tqdm
-from scipy.io import mmwrite
+
 m = [[1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1],
     [0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1],
     [0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0],

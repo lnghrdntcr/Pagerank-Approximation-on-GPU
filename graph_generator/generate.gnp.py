@@ -1,9 +1,6 @@
 import networkx as nx
 from threading import Thread
-import numpy as np
-from scipy.sparse import csc_matrix
 from time import time
-from tqdm import tqdm
 
 m = [[1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1],
     [0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1],
@@ -42,10 +39,10 @@ def format_file(filename, values):
         f.write('{}\n'.format(e))
 
 
-DIM = 10**4
+DIM = 2*10**6
 write_log("DIM = {}".format(DIM))
 
-PERC_SPARSE = 0.1
+PERC_SPARSE = 0.000003
 write_log("PERC_SPARSE = {}% => expecting {} elements per column".format(str((1 - PERC_SPARSE)*100), DIM * PERC_SPARSE))
 
 write_log("Generating graph...")

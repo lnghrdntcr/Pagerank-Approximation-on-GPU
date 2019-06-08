@@ -19,7 +19,7 @@
 #include "Parse/Parse.h"
 #include "Utils/Utils.h"
 
-#define TAU 0.0
+#define TAU 0.0it
 #define ALPHA 0.85
 
 #define MAX_B 1024
@@ -27,7 +27,7 @@
 
 #define MAX_ITER 200
 
-#define num_type double
+#define num_type float
 
 template<typename T>
 bool check_error(T *e, const T error, const unsigned DIMV) {
@@ -102,8 +102,8 @@ void part_spmv(T *Y, T *pr, T *csc_val, int *csc_non_zero, int *csc_col_idx, boo
 
             int begin = csc_non_zero[i];
             int end = csc_non_zero[i + 1];
-            
-            if(update_bitmap[i] == true){
+
+            if (update_bitmap[i] == true) {
 
                 T acc = 0.0;
 
@@ -126,7 +126,7 @@ void scale(T *m, T v, const unsigned DIMV) {
 
     int init = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = blockDim.x * gridDim.x;
-    
+
     if (init < DIMV) {
         for (int i = init; i < DIMV; i += stride) {
             m[i] *= v;
@@ -146,6 +146,26 @@ void shift(T *m, T v, const unsigned DIMV) {
             m[i] += v;
         }
     }
+}
+
+/**
+ * Performs an axpb operation on the x vector inplace
+ * @tparam T Numeric type
+ * @param x The vector to scale and shift
+ * @param a scaling factor
+ * @param b shifting factor
+ * @return
+ */
+template<typename T>
+__global__
+void axpb(T *x, T a, T b, const unsigned DIMV) {
+    int init = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+
+    for (int i = init; i < DIMV; i += stride) {
+        x[i] = x[i] * a + b;
+    }
+
 }
 
 template<typename T>
@@ -172,7 +192,7 @@ void part_compute_error(T *error, T *next, T *prev, bool *update_bitmap, const u
 
     if (init < DIMV) {
         for (int i = init; i < DIMV; i += stride) {
-            if(update_bitmap[i]){
+            if (update_bitmap[i]) {
                 error[i] = abs(next[i] - prev[i]);
                 update_bitmap[i] = error[i] > TAU;
             }
@@ -195,14 +215,14 @@ void d_set_dangling_bitmap(bool *dangling_bitmap, int *csc_col_idx, const unsign
 
 template<typename T1, typename T2>
 T2 dot(size_t n, T1 *x, T2 *y) {
-    thrust::device_ptr<T1> d_x(x);
-    thrust::device_ptr<T2> d_y(y);
+    thrust::device_ptr <T1> d_x(x);
+    thrust::device_ptr <T2> d_y(y);
     return thrust::inner_product(
             d_x,
             d_x + n,
             d_y,
             (T2) 0.0
-            );
+    );
 }
 
 struct is_over_error {
@@ -212,7 +232,7 @@ struct is_over_error {
     }
 };
 
-template <typename T1, typename T2>
+template<typename T1, typename T2>
 T2 h_dot(size_t n, T1 *x, T2 *y) {
     T1 *tempx;
     T2 *tempy;
@@ -226,7 +246,7 @@ T2 h_dot(size_t n, T1 *x, T2 *y) {
     T2 acc = 0.0;
 
     for (int i = 0; i < n; ++i) {
-        acc += tempx[i]*tempy[i];
+        acc += tempx[i] * tempy[i];
     }
 
     return acc;
@@ -248,12 +268,12 @@ int main() {
     num_type *d_error;
     num_type *d_spmv_res;
     num_type *d_csc_val;
-    int      *d_csc_non_zero;
-    int      *d_csc_col_idx;
-    bool     *d_dangling_bitmap;
-    bool     *d_update_bitmap;
+    int *d_csc_non_zero;
+    int *d_csc_col_idx;
+    bool *d_dangling_bitmap;
+    bool *d_update_bitmap;
 
-    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/test");
+    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/new_ds/gnp");
 
     const unsigned NON_ZERO = csc_matrix.val.size();
     const unsigned DIM = csc_matrix.non_zero.size() - 1;
@@ -281,15 +301,15 @@ int main() {
     std::cout << "Parsing csc files" << std::endl;
 
     to_device_csc(d_csc_val, d_csc_non_zero, d_csc_col_idx, csc_matrix);
-    
+
     std::cout << "Initializing pr, error, dangling bitmap vectors" << std::endl;
 
     // Initialize error and pr vector
     cudaMemset(d_pr, (num_type) 1.0 / DIM, DIM);
-    cudaMemset(d_error,  (num_type) 1.0, DIM);
+    cudaMemset(d_error, (num_type) 1.0, DIM);
     cudaMemset(d_dangling_bitmap, true, DIM);
     cudaMemset(d_update_bitmap, true, DIM);
-    
+
     d_set_dangling_bitmap << < MAX_B, MAX_T >> > (d_dangling_bitmap, d_csc_col_idx, NON_ZERO);
 
 
@@ -308,15 +328,22 @@ int main() {
 
         spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
         // part_spmv <<< MAX_B, MAX_T >>> (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
-        scale << < MAX_B, MAX_T >> > (d_spmv_res, (num_type) ALPHA, DIM);
 
         num_type res_v = dot(DIM, d_dangling_bitmap, d_pr);
         /*num_type res_v_h = h_dot(DIM, d_dangling_bitmap, d_pr);
 
         std::cout << "Thrust: " << res_v << " <-> Host: " << res_v_h << " -> diff: " << abs(res_v_h - res_v) << std::endl;
 */
+        //scale << < MAX_B, MAX_T >> > (d_spmv_res, (num_type) ALPHA, DIM);
+        //shift << < MAX_B, MAX_T >> > (d_spmv_res, static_cast<num_type> ((1.0 - ALPHA) / DIM + (ALPHA / DIM) * res_v), DIM);
 
-        shift << < MAX_B, MAX_T >> > (d_spmv_res, static_cast<num_type> ((1.0 - ALPHA) / DIM + (ALPHA / DIM) * res_v), DIM);
+        axpb << < MAX_B, MAX_T >> > (
+                d_spmv_res,
+                (num_type) ALPHA,
+                static_cast<num_type>
+                ((1.0 - ALPHA) / DIM + (ALPHA / DIM) * res_v),
+                DIM
+            );
 
         compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
         // part_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, d_update_bitmap, DIM);
@@ -355,7 +382,7 @@ int main() {
 
     std::sort(sorted_pr.begin(), sorted_pr.end(),
               [](const std::pair<int, num_type> &l, const std::pair<int, num_type> &r) {
-                  if(l.second != r.second)return l.second > r.second;
+                  if (l.second != r.second)return l.second > r.second;
                   else return l.first > r.first;
               });
 
@@ -367,25 +394,40 @@ int main() {
     std::cout << "Checking results..." << std::endl;
 
     std::ifstream results;
-    results.open("/home/fra/University/HPPS/Approximate-PR/graph_generator/generated_csc/test/results.txt");
+    results.open("/home/fra/University/HPPS/Approximate-PR/new_ds/gnp/results.txt");
 
     int i = 0;
     int tmp = 0;
     int errors = 0;
+    int errors_real = 0;
+
+    int prev_left_idx = 0;
+    int prev_right_idx = 0;
 
     while (results >> tmp) {
         // std::cout << "reading " << tmp << std::endl;
         if (tmp != sorted_pr_idxs[i]) {
-            errors++;
-            if(errors <= 10){
-                // Print only the top 10 errors
-                std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => " << (num_type) pr_map[sorted_pr_idxs[i]] << std::endl;
+            errors_real++;
+            if (prev_left_idx != sorted_pr_idxs[i] || prev_right_idx != tmp) {
+                errors++;
+
+                if (errors <= 10) {
+                    // Print only the top 10 errors
+                    std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i] << " Value => "
+                              << (num_type) pr_map[sorted_pr_idxs[i]] << std::endl;
+                }
+
             }
+
+            prev_left_idx = tmp;
+            prev_right_idx = sorted_pr_idxs[i];
+
+
         }
         i++;
     }
 
-    std::cout << "Percentage of error: " << (((double) errors) / (DIM)) * 100 << "%\n" << std::endl;
+    std::cout << "Percentage of error: " << (((double) errors_real) / (DIM)) * 100 << "%\n" << std::endl;
 
     cudaFree(&pr);
     cudaFree(&error);

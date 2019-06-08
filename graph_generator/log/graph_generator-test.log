@@ -1398,3 +1398,12 @@ Formatting generated_csc/test/col_idx.txt
 Formatting generated_csc/test/val.txt
 Formatting generated_csc/test/non_zero.txt
 DONE [24.68484354019165s]
+DIM = 2000000
+PERC_SPARSE = 90.0% => expecting 200000.0 elements per column
+Generating graph...
+DIM = 2000000
+PERC_SPARSE = 99.9999% => expecting 2.0 elements per column
+Generating graph...
+DIM = 2000000
+PERC_SPARSE = 99.9997% => expecting 6.0 elements per column
+Generating graph...

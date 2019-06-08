@@ -1,10 +1,6 @@
 import networkx as nx
-
 from threading import Thread
-import numpy as np
-from scipy.sparse import csc_matrix
 from time import time
-from tqdm import tqdm
 
 m = [[1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1],
     [0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1],
@@ -33,7 +29,7 @@ def to_digraph(G):
 
 def write_log(message, endl='\n'):
     print(message)
-    f = open("log/graph_generator-cur.log".format(str(time())), "a+")
+    f = open("log/scf.log".format(str(time())), "a+")
     if endl == '\n':
         f.write("{}{}".format(message, endl))
     else:
@@ -55,11 +51,11 @@ def format_file(filename, values):
         f.write('{}\n'.format(e))
 
 
-DIM = 1e6
+DIM = 2*10**6
 
 write_log("Generating graph...", endl='')
 start = time()
-g = nx.scale_free_graph(DIM, seed=42)
+g = nx.scale_free_graph(DIM)
 sm = nx.stochastic_graph(g)
 
 write_log("DONE [{:.10f}]s".format(time() - start))
