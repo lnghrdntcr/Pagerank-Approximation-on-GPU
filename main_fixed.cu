@@ -216,14 +216,14 @@ bool check_error(T *e, const T error, const unsigned DIMV) {
 
 template<typename T1, typename T2>
 T2 d_fixed_dot(T1 *x, T2 *y, size_t n) {
-    thrust::device_ptr<T1> d_x(x);
-    thrust::device_ptr<T2> d_y(y);
+
     return thrust::inner_product(
-            d_x,
-            d_x + n,
-            d_y,
-            (T2) 0
-    );
+            thrust::device,
+            thrust::device_pointer_cast(x),
+            thrust::device_pointer_cast(x + n),
+            thrust::device_pointer_cast(y),
+            0
+            );
 }
 
 template<typename T>
@@ -270,6 +270,7 @@ struct is_over_error {
     }
 };
 
+
 int main() {
 
     /**
@@ -290,7 +291,7 @@ int main() {
     bool *d_dangling_bitmap;
     bool *d_update_bitmap;
 
-    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/new_ds/gnp");
+    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/new_ds/smw-little", false);
     csc_fixed_t fixed_csc = to_fixed_csc(csc_matrix);
 
     const unsigned NON_ZERO = csc_matrix.val.size();
@@ -416,7 +417,7 @@ int main() {
     std::cout << "Checking results..." << std::endl;
 
     std::ifstream results;
-    results.open("/home/fra/University/HPPS/Approximate-PR/new_ds/gnp/results.txt");
+    results.open("/home/fra/University/HPPS/Approximate-PR/new_ds/smw-little/results.txt");
 
     int i = 0;
     int tmp = 0;

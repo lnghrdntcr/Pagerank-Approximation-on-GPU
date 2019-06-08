@@ -5,12 +5,15 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <vector>
+#include <map>
+#include <algorithm>
 
 #include "pagerank.cuh"
 #include "pagerank_pipeline.cuh"
 #include "sample_graph.hpp"
 #include "utils.hpp"
 
+#define DEBUG true
 #define num_type double
 ////////////////////////////////
 ////////////////////////////////
@@ -23,12 +26,12 @@ using std::vector;
 int main(int argc, char *argv[]) {
     // Input variables, with default values;
     string default_graph_type = "full_undirected";
-    string csc_data_file = "/home/fra/University/HPPS/Approximate-PR/new_ds/gnp/val.txt";
-    string csc_ptr_file= "/home/fra/University/HPPS/Approximate-PR/new_ds/gnp/non_zero.txt";
-    string csc_indices_file  = "/home/fra/University/HPPS/Approximate-PR/new_ds/gnp/col_idx.txt";
+    string csc_data_file = "/home/fra/University/HPPS/Approximate-PR/new_ds/smw-little/val.txt";
+    string csc_ptr_file= "/home/fra/University/HPPS/Approximate-PR/new_ds/smw-little/non_zero.txt";
+    string csc_indices_file  = "/home/fra/University/HPPS/Approximate-PR/new_ds/smw-little/col_idx.txt";
 
     int max_iter = 200;
-    num_type min_norm_error = 1e-12f;
+    num_type min_norm_error = 1e-6;
     num_type dangling_factor = 0.85f;
 
     bool use_cpu_gpu_async = false;
@@ -188,7 +191,68 @@ int main(int argc, char *argv[]) {
     num_type final_error = 0.0f;
 
     // Pass vectors as arrays, and use the right version of PR;
-        pagerank(n, e, g_ptr_vec.data(), g_ind_vec.data(), g_data_vec.data(),
-                 dangling_factor, min_norm_error, max_iter, pr,
-                 &final_iteration, &final_error, human_readable, error_on_cpu);
+    pagerank(n, e, g_ptr_vec.data(), g_ind_vec.data(), g_data_vec.data(),
+             dangling_factor, min_norm_error, max_iter, pr,
+             &final_iteration, &final_error, human_readable, error_on_cpu);
+
+    std::map<int, num_type> pr_map;
+    std::vector<std::pair<int, num_type>> sorted_pr;
+    std::vector<int> sorted_pr_idxs;
+
+    for (int i = 0; i < n; ++i) {
+        sorted_pr.push_back({i, pr[i]});
+        pr_map[i] = pr[i];
+    }
+    std::sort(sorted_pr.begin(), sorted_pr.end(),
+              [](const std::pair<int, num_type> &l, const std::pair<int, num_type> &r) {
+                  if (l.second != r.second)return l.second > r.second;
+                  else return l.first > r.first;
+              });
+
+    // print the vector
+    for (auto const &pair: sorted_pr) {
+        sorted_pr_idxs.push_back(pair.first);
+    }
+
+    if (DEBUG) {
+        std::cout << "Checking results..." << std::endl;
+
+        std::ifstream results;
+        results.open("/home/fra/University/HPPS/Approximate-PR/new_ds/smw-little/results.txt");
+
+        int i = 0;
+        int tmp = 0;
+        int errors = 0;
+        int errors_real = 0;
+
+        int prev_left_idx = 0;
+        int prev_right_idx = 0;
+
+        while (results >> tmp) {
+            // std::cout << "reading " << tmp << std::endl;
+            if (tmp != sorted_pr_idxs[i]) {
+                errors_real++;
+                if (prev_left_idx != sorted_pr_idxs[i] || prev_right_idx != tmp) {
+                    errors++;
+
+                    if (errors <= 10) {
+                        // Print only the top 10 errors
+                        std::cout << "ERROR AT INDEX " << i << ": " << tmp << " != " << sorted_pr_idxs[i]
+                                  << " Value => "
+                                  << (num_type) pr_map[sorted_pr_idxs[i]] << std::endl;
+                    }
+
+                }
+
+                prev_left_idx = tmp;
+                prev_right_idx = sorted_pr_idxs[i];
+
+
+            }
+            i++;
+        }
+
+        std::cout << "Percentage of error: " << (((double) errors_real) / (n)) * 100 << "%\n" << std::endl;
+    }
+
 }

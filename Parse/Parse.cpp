@@ -9,9 +9,11 @@
 
 #include "Parse.h"
 
-csc_t parse_dir (const std::string dir_path){
+csc_t parse_dir (const std::string dir_path, bool debug = false){
 
-    std::cout << "Parsing " << dir_path << std::endl;
+    if(debug){
+        std::cout << "Parsing " << dir_path << std::endl;
+    }
 
     std::stringstream ss_val;
     std::stringstream ss_n_zero;
@@ -19,7 +21,7 @@ csc_t parse_dir (const std::string dir_path){
 
     std::ifstream val, non_zero, col_idx;
 
-    std::vector<float> csc_val;
+    std::vector<double> csc_val;
     std::vector<int> csc_non_zero;
     std::vector<int> csc_col_idx;
 
@@ -40,7 +42,7 @@ csc_t parse_dir (const std::string dir_path){
 
 
     int tmp2;
-    float tmp1;
+    double tmp1;
 
     while (val >> tmp1) {
         csc_val.push_back(tmp1);
