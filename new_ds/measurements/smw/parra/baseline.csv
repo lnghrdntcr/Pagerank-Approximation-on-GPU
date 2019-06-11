@@ -1,0 +1,21 @@
+==4013== NVPROF is profiling process 4013, command: ./pagerank_experiment
+Pagerank converged after 374 ms and 15 iterations
+Checking results...
+ERROR AT INDEX 8: 93473 != 48436 Value => 1.84037e-05
+ERROR AT INDEX 16: 71977 != 17407 Value => 1.82031e-05
+ERROR AT INDEX 28: 12238 != 37099 Value => 1.80441e-05
+ERROR AT INDEX 32: 43732 != 59502 Value => 1.80117e-05
+ERROR AT INDEX 35: 90164 != 28461 Value => 1.79796e-05
+ERROR AT INDEX 39: 45324 != 13191 Value => 1.79618e-05
+ERROR AT INDEX 67: 27542 != 58759 Value => 1.69119e-05
+ERROR AT INDEX 73: 49578 != 52046 Value => 1.67967e-05
+ERROR AT INDEX 84: 33477 != 7181 Value => 1.67289e-05
+ERROR AT INDEX 93: 55723 != 30205 Value => 1.6646e-05
+Percentage of error: 97.778%
+
+==4013== Profiling application: ./pagerank_experiment
+==4013== Profiling result:
+No kernels were profiled.
+No API activities were profiled.
+==4013== Warning: Some profiling data are not recorded. Make sure cudaProfilerStop() or cuProfilerStop() is called before application exit to flush profile data.
+======== Error: Application received signal 139

@@ -1,0 +1,39 @@
+==10188== NVPROF is profiling process 10188, command: ./Approximate_PR
+==10188== Profiling application: ./Approximate_PR
+==10188== Profiling result:
+            Type  Time(%)      Time     Calls       Avg       Min       Max  Name
+ GPU activities:   43.12%  7.2773ms       118  61.672us  60.992us  62.497us  void part_spmv<float>(float*, float*, float*, int*, int*, bool*, unsigned int)
+                   20.27%  3.4213ms       118  28.993us  28.353us  29.696us  void part_compute_error<float>(float*, float*, float*, bool*, unsigned int)
+                   18.70%  3.1554ms       118  26.740us  26.208us  27.616us  void axpb<float>(float*, float, float, unsigned int)
+                    5.58%  941.13us       118  7.9750us  7.7760us  8.4800us  void thrust::cuda_cub::cub::DeviceReduceKernel<thrust::cuda_cub::cub::DeviceReducePolicy<double, int, thrust::plus<double>>::Policy600, thrust::cuda_cub::transform_pair_of_input_iterators_t<double, thrust::device_ptr<bool>, thrust::device_ptr<float>, thrust::multiplies<double>>, double*, int, thrust::plus<double>>(int, double, thrust::plus<double>, thrust::cuda_cub::cub::GridEvenShare<double>, thrust::cuda_cub::cub::DeviceReducePolicy<double, int, thrust::plus<double>>::Policy600)
+                    3.02%  509.57us       118  4.3180us  3.6800us  10.464us  void thrust::cuda_cub::cub::DeviceReduceKernel<thrust::cuda_cub::cub::DeviceReducePolicy<double, int, thrust::plus<float>>::Policy600, thrust::cuda_cub::transform_input_iterator_t<double, float*, d_square>, double*, int, thrust::plus<float>>(int, float, thrust::plus<float>, thrust::cuda_cub::cub::GridEvenShare<float>, thrust::cuda_cub::cub::DeviceReducePolicy<double, int, thrust::plus<float>>::Policy600)
+                    2.69%  454.24us       118  3.8490us  3.7120us  9.8240us  [CUDA memcpy DtoD]
+                    2.16%  365.06us       118  3.0930us  2.4320us  8.5440us  void thrust::cuda_cub::cub::DeviceReduceSingleTileKernel<thrust::cuda_cub::cub::DeviceReducePolicy<double, int, thrust::plus<float>>::Policy600, double*, double*, int, thrust::plus<float>, double>(int, float, thrust::plus<float>, thrust::cuda_cub::cub::DeviceReducePolicy<double, int, thrust::plus<float>>::Policy600, double*)
+                    1.61%  272.39us       239  1.1390us     672ns  31.264us  [CUDA memcpy DtoH]
+                    1.57%  265.25us       118  2.2470us  2.1760us  3.5520us  void thrust::cuda_cub::cub::DeviceReduceSingleTileKernel<thrust::cuda_cub::cub::DeviceReducePolicy<double, int, thrust::plus<double>>::Policy600, double*, double*, int, thrust::plus<double>, double>(int, double, thrust::plus<double>, thrust::cuda_cub::cub::DeviceReducePolicy<double, int, thrust::plus<double>>::Policy600, double*)
+                    0.94%  159.04us         3  53.013us  32.001us  64.192us  [CUDA memcpy HtoD]
+                    0.32%  53.761us         1  53.761us  53.761us  53.761us  d_set_dangling_bitmap(bool*, int*, unsigned int)
+                    0.02%  2.5600us         4     640ns     512ns     832ns  [CUDA memset]
+      API calls:   81.13%  374.10ms         2  187.05ms  7.9020us  374.10ms  cudaHostAlloc
+                   13.64%  62.888ms         2  31.444ms  1.4262ms  61.462ms  cudaDeviceReset
+                    2.30%  10.620ms       236  44.999us  10.311us  106.46us  cudaDeviceSynchronize
+                    0.91%  4.1822ms       827  5.0570us  3.7710us  24.742us  cudaLaunchKernel
+                    0.47%  2.1648ms       236  9.1720us  8.8070us  22.224us  cudaMemcpyAsync
+                    0.32%  1.4746ms       124  11.891us  8.0260us  125.52us  cudaMemcpy
+                    0.30%  1.3671ms       244  5.6020us  3.8670us  82.027us  cudaMalloc
+                    0.22%  1.0140ms       472  2.1480us  1.8940us  39.880us  cudaFuncGetAttributes
+                    0.22%  996.08us       244  4.0820us     398ns  22.348us  cudaFree
+                    0.16%  719.58us        97  7.4180us     447ns  323.85us  cuDeviceGetAttribute
+                    0.11%  523.42us         1  523.42us  523.42us  523.42us  cuDeviceTotalMem
+                    0.06%  289.80us       236  1.2270us  1.0920us  14.089us  cudaStreamSynchronize
+                    0.05%  210.58us       472     446ns     353ns  1.0840us  cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags
+                    0.03%  159.78us       472     338ns     267ns  1.0530us  cudaGetDevice
+                    0.03%  153.16us       472     324ns     230ns  1.0720us  cudaDeviceGetAttribute
+                    0.03%  121.53us         1  121.53us  121.53us  121.53us  cuDeviceGetName
+                    0.01%  53.171us       472     112ns      87ns     180ns  cudaPeekAtLastError
+                    0.01%  37.217us         4  9.3040us  4.3330us  22.090us  cudaMemset
+                    0.01%  34.787us       236     147ns     130ns     198ns  cudaGetLastError
+                    0.00%  5.4040us         1  5.4040us  5.4040us  5.4040us  cuDeviceGetPCIBusId
+                    0.00%  5.1130us         3  1.7040us     454ns  3.7370us  cuDeviceGetCount
+                    0.00%  2.6850us         2  1.3420us     504ns  2.1810us  cuDeviceGet
+                    0.00%     771ns         1     771ns     771ns     771ns  cuDeviceGetUuid

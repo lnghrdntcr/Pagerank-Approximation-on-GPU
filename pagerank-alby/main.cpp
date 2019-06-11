@@ -13,7 +13,7 @@
 #include "sample_graph.hpp"
 #include "utils.hpp"
 
-#define DEBUG true
+#define DEBUG true 
 #define num_type double
 ////////////////////////////////
 ////////////////////////////////
@@ -26,9 +26,9 @@ using std::vector;
 int main(int argc, char *argv[]) {
     // Input variables, with default values;
     string default_graph_type = "full_undirected";
-    string csc_data_file = "/home/fra/University/HPPS/Approximate-PR/new_ds/smw-little/val.txt";
-    string csc_ptr_file= "/home/fra/University/HPPS/Approximate-PR/new_ds/smw-little/non_zero.txt";
-    string csc_indices_file  = "/home/fra/University/HPPS/Approximate-PR/new_ds/smw-little/col_idx.txt";
+    string csc_data_file = "/home/fra/University/HPPS/Approximate-PR/new_ds/scf/val.txt";
+    string csc_ptr_file= "/home/fra/University/HPPS/Approximate-PR/new_ds/scf/non_zero.txt";
+    string csc_indices_file  = "/home/fra/University/HPPS/Approximate-PR/new_ds/scf/col_idx.txt";
 
     int max_iter = 200;
     num_type min_norm_error = 1e-6;
@@ -209,7 +209,6 @@ int main(int argc, char *argv[]) {
                   else return l.first > r.first;
               });
 
-    // print the vector
     for (auto const &pair: sorted_pr) {
         sorted_pr_idxs.push_back(pair.first);
     }
@@ -218,7 +217,7 @@ int main(int argc, char *argv[]) {
         std::cout << "Checking results..." << std::endl;
 
         std::ifstream results;
-        results.open("/home/fra/University/HPPS/Approximate-PR/new_ds/smw-little/results.txt");
+        results.open("/home/fra/University/HPPS/Approximate-PR/new_ds/scf/results.txt");
 
         int i = 0;
         int tmp = 0;
@@ -254,5 +253,7 @@ int main(int argc, char *argv[]) {
 
         std::cout << "Percentage of error: " << (((double) errors_real) / (n)) * 100 << "%\n" << std::endl;
     }
+
+
 
 }

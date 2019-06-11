@@ -1,0 +1,11 @@
+==4666== NVPROF is profiling process 4666, command: ./pagerank_experiment
+Pagerank converged after 361 ms and 41 iterations
+Checking results...
+Percentage of error: 0%
+
+==4666== Profiling application: ./pagerank_experiment
+==4666== Profiling result:
+No kernels were profiled.
+No API activities were profiled.
+==4666== Warning: Some profiling data are not recorded. Make sure cudaProfilerStop() or cuProfilerStop() is called before application exit to flush profile data.
+======== Error: Application received signal 139

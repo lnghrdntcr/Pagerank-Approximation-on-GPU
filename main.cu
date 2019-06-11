@@ -28,7 +28,8 @@
 #define MAX_ITER 200
 
 #define num_type float
-#define DEBUG true
+#define DEBUG false
+#define PYTHON_CONVERGENCE_ERROR_OUT false
 
 template<typename T>
 bool check_error(T *e, const T error, const unsigned DIMV) {
@@ -98,23 +99,19 @@ void part_spmv(T *Y, T *pr, T *csc_val, int *csc_non_zero, int *csc_col_idx, boo
     int init = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = blockDim.x * gridDim.x;
 
-    if (init < DIMV) {
-        for (int i = init; i < DIMV && update_bitmap[i]; i += stride) {
+    for (int i = init; i < DIMV && update_bitmap[i]; i += stride) {
 
-            int begin = csc_non_zero[i];
-            int end = csc_non_zero[i + 1];
+        int begin = csc_non_zero[i];
+        int end = csc_non_zero[i + 1];
+        T acc = 0.0;
 
-            T acc = 0.0;
-
-            for (int j = begin; j < end; j++) {
-                acc += csc_val[j] * pr[csc_col_idx[j]];
-            }
-
-            Y[i] = acc;
-
+        for (int j = begin; j < end; j++) {
+            acc += csc_val[j] * pr[csc_col_idx[j]];
         }
-    }
 
+        Y[i] = acc;
+
+    }
 }
 
 
@@ -206,16 +203,12 @@ void part_compute_error(T *error, T *next, T *prev, bool *update_bitmap, const u
     int init = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = blockDim.x * gridDim.x;
 
-    if (init < DIMV) {
-        for (int i = init; i < DIMV; i += stride) {
-            if (update_bitmap[i]) {
-                error[i] = abs(next[i] - prev[i]);
-                update_bitmap[i] = error[i] > TAU;
-            }
-        }
+    for (int i = init; i < DIMV && update_bitmap[i]; i += stride) {
+        error[i] = abs(next[i] - prev[i]);
+        update_bitmap[i] = error[i] >= TAU;
     }
-
 }
+
 
 __global__
 void d_set_dangling_bitmap(bool *dangling_bitmap, int *csc_col_idx, const unsigned DIMV) {
@@ -307,7 +300,7 @@ int main() {
     bool *d_dangling_bitmap;
     bool *d_update_bitmap;
 
-    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/new_ds/gnp", DEBUG);
+    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/new_ds/smw", DEBUG);
 
     const unsigned NON_ZERO = csc_matrix.val.size();
     const unsigned DIM = csc_matrix.non_zero.size() - 1;
@@ -371,34 +364,31 @@ int main() {
 
     while (!converged && iterations < MAX_ITER) {
 
-        spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
-        //part_spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
+        //spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
+        part_spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
 
         num_type res_v = dot(DIM, d_dangling_bitmap, d_pr);
 
-        axpb << < MAX_B, MAX_T >> > (
+        axpb <<< MAX_B, MAX_T >>> (
                 d_spmv_res,
-                        (num_type) ALPHA,
-                        static_cast<num_type>
-                        ((1.0 - ALPHA) / DIM + (ALPHA / DIM) * res_v),
-                        DIM
+                (num_type) ALPHA,
+                static_cast<num_type>((1.0 - ALPHA) / DIM + (ALPHA / DIM) * res_v),
+                DIM
         );
 
         //num_type euclidean_error = euclidean_dist(DIM, d_error, d_pr);
         //std::cout << euclidean_error << std::endl;
-        compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
-        //part_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, d_update_bitmap, DIM);
+        //compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
+        part_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, d_update_bitmap, DIM);
 
-        //num_type error_euc = euclidean_error(d_error, DIM);
+        num_type error_euc = euclidean_error(d_error, DIM);
         //convergence_error_vector[iterations] = error_euc;
         //std::cout << "Convergence error[" << iterations << "]: " << error_euc << std::endl;
 
-        cudaDeviceSynchronize();
-
         cudaMemcpy(d_pr, d_spmv_res, DIM * sizeof(num_type), cudaMemcpyDeviceToDevice);
 
-        converged = thrust::count_if(thrust::device, d_error, d_error + DIM, is_over_error()) == 0;
-        //converged = error_euc <= TAU;
+        //converged = thrust::count_if(thrust::device, d_error, d_error + DIM, is_over_error()) == 0;
+        converged = error_euc <= TAU;
         iterations++;
     }
 
@@ -443,7 +433,7 @@ int main() {
         std::cout << "Checking results..." << std::endl;
 
         std::ifstream results;
-        results.open("/home/fra/University/HPPS/Approximate-PR/new_ds/gnp/results.txt");
+        results.open("/home/fra/University/HPPS/Approximate-PR/new_ds/smw/results.txt");
 
         int i = 0;
         int tmp = 0;
@@ -482,8 +472,7 @@ int main() {
 
     }
 
-    if (DEBUG) {
-        std::cout << "Convergence error " << std::endl;
+    if (PYTHON_CONVERGENCE_ERROR_OUT) {
         for (int i = 0; i < iterations; ++i) {
             std::cout << "(" << i << "," << convergence_error_vector[i] << ")" << std::endl;
         }

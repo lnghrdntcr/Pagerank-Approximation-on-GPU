@@ -26,6 +26,7 @@
 #define MAX_T 1024
 
 #define DEBUG false
+#define PYTHON_CONVERGENCE_ERROR_OUT false
 #define MAX_ITER 200
 
 #define num_type long long unsigned
@@ -133,7 +134,6 @@ d_update_fixed_spmv(T *Y, T *pr, T *csc_val, int *csc_non_zero, int *csc_col_idx
     }
 }
 
-// Until I figure out how cudaMemset works
 template<typename T>
 __global__
 void d_set_value(T *v, const T value, const unsigned DIMV) {
@@ -332,7 +332,7 @@ int main() {
     bool *d_dangling_bitmap;
     bool *d_update_bitmap;
 
-    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/new_ds/gnp", DEBUG);
+    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/new_ds/scf", DEBUG);
     csc_fixed_t fixed_csc = to_fixed_csc(csc_matrix);
 
     const unsigned NON_ZERO = csc_matrix.val.size();
@@ -402,35 +402,27 @@ int main() {
     while (!converged && iterations < MAX_ITER) {
 
         // SpMV
-        //d_fixed_spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
-        d_update_fixed_spmv<< <MAX_B, MAX_T>> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
-        //cudaDeviceSynchronize();
-
-        // Scale
-        //d_fixed_scale << < MAX_B, MAX_T >> > (d_spmv_res, F_ALPHA, DIM);
-        //cudaDeviceSynchronize();
+        d_fixed_spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
+        //d_update_fixed_spmv<< <MAX_B, MAX_T>> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
 
         // Dangling nodes handler
         num_type res_v = d_fixed_dot(d_pr, d_dangling_bitmap, DIM);
         //num_type res_v = h_fixed_dot(DIM, d_dangling_bitmap, d_pr);
         //std::cout << "Thrust: " << res_v << " <-> Host: " << res_v_h << " -> diff: " << h_s_abs(res_v_h, res_v) << std::endl;
-        //cudaDeviceSynchronize();
 
-        // Shift
-        //d_fixed_shift << < MAX_B, MAX_T >> >(d_spmv_res, ((num_type) F_SHIFT + fixed_mult(F_DANGLING_SCALE, res_v)), DIM);
-
+        // aX + b
         d_fixed_axpb<<<MAX_T, MAX_B>>>(d_spmv_res, F_ALPHA, ((num_type) F_SHIFT + fixed_mult(F_DANGLING_SCALE, res_v)), DIM);
 
         // Compute error
-        //d_fixed_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
-        d_update_fixed_compute_error << <MAX_B, MAX_T>> > (d_error, d_spmv_res, d_pr, d_update_bitmap, F_TAU, DIM);
-        num_type error_euc = euclidean_error(d_error, DIM);
+        d_fixed_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
+        //d_update_fixed_compute_error << <MAX_B, MAX_T>> > (d_error, d_spmv_res, d_pr, d_update_bitmap, F_TAU, DIM);
+        //num_type error_euc = euclidean_error(d_error, DIM);
         //convergence_error_vector[iterations] = error_euc;
 
         cudaMemcpy(d_pr, d_spmv_res, DIM * sizeof(num_type), cudaMemcpyDeviceToDevice);
 
-        //converged = thrust::count_if(thrust::device, d_error, d_error + DIM, is_over_error()) == 0;
-        converged = error_euc <= F_TAU;
+        converged = thrust::count_if(thrust::device, d_error, d_error + DIM, is_over_error()) == 0;
+        //converged = error_euc <= F_TAU;
         iterations++;
 
     }
@@ -472,7 +464,7 @@ int main() {
         std::cout << "Checking results..." << std::endl;
 
         std::ifstream results;
-        results.open("/home/fra/University/HPPS/Approximate-PR/new_ds/gnp/results.txt");
+        results.open("/home/fra/University/HPPS/Approximate-PR/new_ds/scf/results.txt");
 
         int i = 0;
         int tmp = 0;
@@ -505,7 +497,7 @@ int main() {
         std::cout << "End of computation! Freeing memory..." << std::endl;
     }
 
-    if(DEBUG){
+    if(PYTHON_CONVERGENCE_ERROR_OUT){
         for (int i = 0; i < iterations; ++i) {
             std::cout << "(" << i << "," << convergence_error_vector[i] << ")" << std::endl;
         }

@@ -1,0 +1,11 @@
+==3252== NVPROF is profiling process 3252, command: ./pagerank_experiment
+Pagerank converged after 376 ms and 14 iterations
+Checking results...
+Percentage of error: 0%
+
+==3252== Profiling application: ./pagerank_experiment
+==3252== Profiling result:
+No kernels were profiled.
+No API activities were profiled.
+==3252== Warning: Some profiling data are not recorded. Make sure cudaProfilerStop() or cuProfilerStop() is called before application exit to flush profile data.
+======== Error: Application received signal 139
