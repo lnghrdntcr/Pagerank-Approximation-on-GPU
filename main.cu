@@ -13,14 +13,13 @@
 
 #include <thrust/inner_product.h>
 #include <thrust/device_ptr.h>
-//#include <thrust/device_pointer_cast.h>
 #include <thrust/count.h>
 #include <thrust/execution_policy.h>
 
 #include "Parse/Parse.h"
 #include "Utils/Utils.h"
 
-#define TAU 1e-6
+#define TAU 0.0
 #define ALPHA 0.85
 
 #define MAX_B 1024
@@ -28,7 +27,7 @@
 
 #define MAX_ITER 200
 
-#define num_type double
+#define num_type float
 #define DEBUG true
 
 template<typename T>
@@ -100,21 +99,18 @@ void part_spmv(T *Y, T *pr, T *csc_val, int *csc_non_zero, int *csc_col_idx, boo
     int stride = blockDim.x * gridDim.x;
 
     if (init < DIMV) {
-        for (int i = init; i < DIMV; i += stride) {
+        for (int i = init; i < DIMV && update_bitmap[i]; i += stride) {
 
             int begin = csc_non_zero[i];
             int end = csc_non_zero[i + 1];
 
-            if (update_bitmap[i] == true) {
+            T acc = 0.0;
 
-                T acc = 0.0;
-
-                for (int j = begin; j < end; j++) {
-                    acc += csc_val[j] * pr[csc_col_idx[j]];
-                }
-
-                Y[i] = acc;
+            for (int j = begin; j < end; j++) {
+                acc += csc_val[j] * pr[csc_col_idx[j]];
             }
+
+            Y[i] = acc;
 
         }
     }
@@ -171,6 +167,24 @@ void axpb(T *x, T a, T b, const unsigned DIMV) {
 }
 
 template<typename T>
+struct euclidean_functor : public thrust::binary_function<T, T, T> {
+    __device__
+    T operator()(const T &x, const T &y) const {
+        return (x - y) * (x - y);
+    }
+};
+
+// Compute Euclidean norm of the difference of 2 vectors;
+template<typename T>
+T euclidean_dist(size_t n, T *x, T *y) {
+    return std::sqrt(thrust::inner_product(
+            thrust::device, thrust::device_pointer_cast(x),
+            thrust::device_pointer_cast(x + n), thrust::device_pointer_cast(y),
+            0.0f, thrust::plus<T>(), euclidean_functor<T>()));
+}
+
+
+template<typename T>
 __global__
 void compute_error(T *error, T *next, T *prev, const unsigned DIMV) {
 
@@ -217,18 +231,10 @@ void d_set_dangling_bitmap(bool *dangling_bitmap, int *csc_col_idx, const unsign
 
 template<typename T1, typename T2>
 T2 dot(size_t n, T1 *x, T2 *y) {
-    /*thrust::device_ptr <T1> d_x(x);
-    thrust::device_ptr <T2> d_y(y);
-    return thrust::inner_product(
-            d_x,
-            d_x + n,
-            d_y,
-            (T2) 0.0
-    );*/
 
     return thrust::inner_product(thrust::device_pointer_cast(x),
-                          thrust::device_pointer_cast(x + n),
-                          thrust::device_pointer_cast(y), 0.0);
+                                 thrust::device_pointer_cast(x + n),
+                                 thrust::device_pointer_cast(y), 0.0);
 
 }
 
@@ -238,6 +244,26 @@ struct is_over_error {
         return x > TAU;
     }
 };
+
+struct d_square : public thrust::unary_function<num_type, num_type> {
+    __device__
+    num_type operator()(num_type &x) {
+        return x * x;
+    }
+};
+
+template<typename T>
+T euclidean_error(T *error, const unsigned DIMV) {
+    thrust::plus <T> add;
+    return thrust::transform_reduce(
+            thrust::device,
+            error,
+            error + DIMV,
+            d_square(),
+            0.0,
+            add
+    );
+}
 
 template<typename T1, typename T2>
 T2 h_dot(size_t n, T1 *x, T2 *y) {
@@ -267,6 +293,7 @@ int main() {
      */
     num_type *pr;
     num_type *error;
+    num_type *convergence_error_vector;
 
     /**
      * DEVICE
@@ -280,7 +307,7 @@ int main() {
     bool *d_dangling_bitmap;
     bool *d_update_bitmap;
 
-    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/new_ds/smw-little", DEBUG);
+    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/new_ds/gnp", DEBUG);
 
     const unsigned NON_ZERO = csc_matrix.val.size();
     const unsigned DIM = csc_matrix.non_zero.size() - 1;
@@ -309,6 +336,8 @@ int main() {
     cudaMalloc(&d_dangling_bitmap, DIM * sizeof(bool));
     cudaMalloc(&d_update_bitmap, DIM * sizeof(bool));
 
+    convergence_error_vector = (num_type *) calloc(MAX_ITER, sizeof(num_type));
+
     if (DEBUG) {
         std::cout << "Parsing csc files" << std::endl;
     }
@@ -327,7 +356,6 @@ int main() {
 
     d_set_dangling_bitmap << < MAX_B, MAX_T >> > (d_dangling_bitmap, d_csc_col_idx, NON_ZERO);
 
-
     // Copy them back to their host vectors
     cudaMemcpy(pr, d_pr, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
     cudaMemcpy(error, d_error, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
@@ -344,7 +372,7 @@ int main() {
     while (!converged && iterations < MAX_ITER) {
 
         spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
-        // part_spmv <<< MAX_B, MAX_T >>> (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
+        //part_spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
 
         num_type res_v = dot(DIM, d_dangling_bitmap, d_pr);
 
@@ -356,15 +384,21 @@ int main() {
                         DIM
         );
 
+        //num_type euclidean_error = euclidean_dist(DIM, d_error, d_pr);
+        //std::cout << euclidean_error << std::endl;
         compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
-        // part_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, d_update_bitmap, DIM);
+        //part_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, d_update_bitmap, DIM);
+
+        //num_type error_euc = euclidean_error(d_error, DIM);
+        //convergence_error_vector[iterations] = error_euc;
+        //std::cout << "Convergence error[" << iterations << "]: " << error_euc << std::endl;
 
         cudaDeviceSynchronize();
 
         cudaMemcpy(d_pr, d_spmv_res, DIM * sizeof(num_type), cudaMemcpyDeviceToDevice);
 
         converged = thrust::count_if(thrust::device, d_error, d_error + DIM, is_over_error()) == 0;
-
+        //converged = error_euc <= TAU;
         iterations++;
     }
 
@@ -409,7 +443,7 @@ int main() {
         std::cout << "Checking results..." << std::endl;
 
         std::ifstream results;
-        results.open("/home/fra/University/HPPS/Approximate-PR/new_ds/smw-little/results.txt");
+        results.open("/home/fra/University/HPPS/Approximate-PR/new_ds/gnp/results.txt");
 
         int i = 0;
         int tmp = 0;
@@ -444,7 +478,17 @@ int main() {
         }
 
         std::cout << "Percentage of error: " << (((double) errors_real) / (DIM)) * 100 << "%\n" << std::endl;
+
+
     }
+
+    if (DEBUG) {
+        std::cout << "Convergence error " << std::endl;
+        for (int i = 0; i < iterations; ++i) {
+            std::cout << "(" << i << "," << convergence_error_vector[i] << ")" << std::endl;
+        }
+    }
+
 
     cudaFree(&pr);
     cudaFree(&error);

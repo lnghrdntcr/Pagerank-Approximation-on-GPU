@@ -21,7 +21,7 @@ csc_t parse_dir (const std::string dir_path, bool debug = false){
 
     std::ifstream val, non_zero, col_idx;
 
-    std::vector<double> csc_val;
+    std::vector<num_type> csc_val;
     std::vector<int> csc_non_zero;
     std::vector<int> csc_col_idx;
 
@@ -42,7 +42,7 @@ csc_t parse_dir (const std::string dir_path, bool debug = false){
 
 
     int tmp2;
-    double tmp1;
+    num_type tmp1;
 
     while (val >> tmp1) {
         csc_val.push_back(tmp1);
