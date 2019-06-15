@@ -25,27 +25,36 @@
 #define MAX_B 1024
 #define MAX_T 1024
 
-#define DEBUG false
+#define DEBUG true
+
+#define USE_NO_OPTIMIZATION false
+#define USE_L2_NORM true
+#define USE_L2_NORM_BITMASK false
+#define GRAPH_TYPE ((std::string) "scf")
+
+#define PYTHON_PAGERANK_VALUES false
 #define PYTHON_CONVERGENCE_ERROR_OUT false
+
 #define MAX_ITER 200
 
 #define num_type long long unsigned
 
-// 00.00 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000
-#define SCALE 62
+// 0.000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000
+#define SCALE 63
 
 __host__
 __device__
-inline num_type d_to_fixed(double x) {
+__forceinline__
+num_type d_to_fixed(double x) {
     return x * ((double) ((num_type) 1 << SCALE));
 }
 
 __host__
 __device__
-inline num_type fixed_mult(num_type x, num_type y) {
-    return (((x) >> (SCALE / 2)) * ((y) >> (SCALE / 2))) >> 0;
+__forceinline__
+num_type fixed_mult(num_type x, num_type y) {
+    return d_to_fixed(((double) ((double) x / (double) (((num_type) 1) << SCALE)) * ((double) y / (double) (((num_type) 1) << SCALE))));
 }
-
 
 
 csc_fixed_t to_fixed_csc(csc_t m) {
@@ -174,7 +183,8 @@ void d_fixed_shift(T *v, T value, const unsigned DIMV) {
 }
 
 __device__
-__forceinline__
+        __forceinline__
+
 unsigned d_fixed_abs(const unsigned x, const unsigned y) {
     if (x > y) return x - y;
     else return y - x;
@@ -217,7 +227,7 @@ bool check_error(T *e, const T error, const unsigned DIMV) {
 }
 
 
-template <typename T>
+template<typename T>
 struct d_fixed_add_functor : public thrust::binary_function<T, T, T> {
     __device__
     T operator()(const T &x, const T &y) const {
@@ -225,7 +235,7 @@ struct d_fixed_add_functor : public thrust::binary_function<T, T, T> {
     }
 };
 
-template <typename T, typename S>
+template<typename T, typename S>
 struct d_fixed_mult_functor : public thrust::binary_function<T, S, T> {
     __device__
     T operator()(const T &x, const S &y) const {
@@ -244,7 +254,7 @@ T2 d_fixed_dot(T1 *x, T2 *y, size_t n) {
             0,
             d_fixed_add_functor<T2>(),
             d_fixed_mult_functor<T2, T1>()
-            );
+    );
 }
 
 template<typename T>
@@ -293,13 +303,13 @@ struct is_over_error {
 
 struct d_fixed_square_functor {
     __device__
-    num_type operator()(num_type &x){
+    num_type operator()(num_type &x) {
         return fixed_mult(x, x);
     }
 };
 
-template <typename T>
-T euclidean_error(T *error, const unsigned DIMV){
+template<typename T>
+T euclidean_error(T *error, const unsigned DIMV) {
     return thrust::transform_reduce(
             thrust::device,
             error,
@@ -332,13 +342,13 @@ int main() {
     bool *d_dangling_bitmap;
     bool *d_update_bitmap;
 
-    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/new_ds/scf", DEBUG);
+    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/new_ds/" + GRAPH_TYPE, DEBUG);
     csc_fixed_t fixed_csc = to_fixed_csc(csc_matrix);
 
     const unsigned NON_ZERO = csc_matrix.val.size();
     const unsigned DIM = csc_matrix.non_zero.size() - 1;
 
-    if(DEBUG){
+    if (DEBUG) {
 
         std::cout << "\nFEATURES: " << std::endl;
         std::cout << "\tNumber of non zero elements: " << NON_ZERO << std::endl;
@@ -350,7 +360,7 @@ int main() {
     cudaMallocHost(&pr, sizeof(num_type) * DIM);
     cudaMallocHost(&error, sizeof(num_type) * DIM);
 
-    if(DEBUG){
+    if (DEBUG) {
         std::cout << "Initializing device memory" << std::endl;
     }
 
@@ -369,7 +379,7 @@ int main() {
     // Transform the std::vectors into device vectors
     to_device_csc(d_csc_val, d_csc_non_zero, d_csc_col_idx, fixed_csc);
 
-    if(DEBUG) {
+    if (DEBUG) {
         std::cout << "Initializing PR, Error, dangling bitmap, update bitmap vecors" << std::endl;
     }
 
@@ -385,7 +395,7 @@ int main() {
     cudaMemcpy(pr, d_pr, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
     cudaMemcpy(error, d_error, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
 
-    if(DEBUG){
+    if (DEBUG) {
         std::cout << "Beginning pagerank" << std::endl;
     }
 
@@ -401,6 +411,66 @@ int main() {
 
     while (!converged && iterations < MAX_ITER) {
 
+        if(USE_NO_OPTIMIZATION){
+            // SpMV
+            d_fixed_spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
+            // Dangling nodes handler
+            num_type res_v = d_fixed_dot(d_pr, d_dangling_bitmap, DIM);
+            // aX + b
+            d_fixed_axpb << < MAX_T, MAX_B >> >(d_spmv_res, F_ALPHA, ((num_type) F_SHIFT + fixed_mult(F_DANGLING_SCALE, res_v)), DIM);
+            // Compute error
+            d_fixed_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
+
+            // Swap back the pagerank values
+            cudaMemcpy(d_pr, d_spmv_res, DIM * sizeof(num_type), cudaMemcpyDeviceToDevice);
+
+            // Check for convergence
+            converged = thrust::count_if(thrust::device, d_error, d_error + DIM, is_over_error()) == 0;
+        }
+
+        if(USE_L2_NORM){
+            // SpMV
+            d_fixed_spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
+            // Dangling nodes handler
+            num_type res_v = d_fixed_dot(d_pr, d_dangling_bitmap, DIM);
+            // aX + b
+            d_fixed_axpb << < MAX_T, MAX_B >> >(d_spmv_res, F_ALPHA, ((num_type) F_SHIFT + fixed_mult(F_DANGLING_SCALE, res_v)), DIM);
+            // Compute error
+            d_fixed_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
+
+            // Compute the l2 norm
+            num_type error_euc = euclidean_error(d_error, DIM);
+            //convergence_error_vector[iterations] = error_euc;
+
+            // Swap back the pagerank values
+            cudaMemcpy(d_pr, d_spmv_res, DIM * sizeof(num_type), cudaMemcpyDeviceToDevice);
+
+            // Check for convergence
+            converged = error_euc <= F_TAU;
+        }
+
+        if(USE_L2_NORM_BITMASK){
+            // SpMV
+            d_update_fixed_spmv<< <MAX_B, MAX_T>> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
+            // Dangling nodes handler
+            num_type res_v = d_fixed_dot(d_pr, d_dangling_bitmap, DIM);
+            // aX + b
+            d_fixed_axpb << < MAX_T, MAX_B >> >(d_spmv_res, F_ALPHA, ((num_type) F_SHIFT + fixed_mult(F_DANGLING_SCALE, res_v)), DIM);
+            // Compute error and bitmask
+            d_update_fixed_compute_error << <MAX_B, MAX_T>> > (d_error, d_spmv_res, d_pr, d_update_bitmap, F_TAU, DIM);
+
+            // Compute the l2 norm
+            num_type error_euc = euclidean_error(d_error, DIM);
+            // convergence_error_vector[iterations] = error_euc;
+
+            // Swap back the pagerank values
+            cudaMemcpy(d_pr, d_spmv_res, DIM * sizeof(num_type), cudaMemcpyDeviceToDevice);
+
+            // Check for convergence
+            converged = error_euc <= F_TAU;
+        }
+
+/*
         // SpMV
         d_fixed_spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
         //d_update_fixed_spmv<< <MAX_B, MAX_T>> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
@@ -411,18 +481,18 @@ int main() {
         //std::cout << "Thrust: " << res_v << " <-> Host: " << res_v_h << " -> diff: " << h_s_abs(res_v_h, res_v) << std::endl;
 
         // aX + b
-        d_fixed_axpb<<<MAX_T, MAX_B>>>(d_spmv_res, F_ALPHA, ((num_type) F_SHIFT + fixed_mult(F_DANGLING_SCALE, res_v)), DIM);
+        d_fixed_axpb << < MAX_T, MAX_B >> >(d_spmv_res, F_ALPHA, ((num_type) F_SHIFT + fixed_mult(F_DANGLING_SCALE, res_v)), DIM);
 
         // Compute error
         d_fixed_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
         //d_update_fixed_compute_error << <MAX_B, MAX_T>> > (d_error, d_spmv_res, d_pr, d_update_bitmap, F_TAU, DIM);
-        //num_type error_euc = euclidean_error(d_error, DIM);
-        //convergence_error_vector[iterations] = error_euc;
+        num_type error_euc = euclidean_error(d_error, DIM);
+        convergence_error_vector[iterations] = error_euc;
 
         cudaMemcpy(d_pr, d_spmv_res, DIM * sizeof(num_type), cudaMemcpyDeviceToDevice);
 
-        converged = thrust::count_if(thrust::device, d_error, d_error + DIM, is_over_error()) == 0;
-        //converged = error_euc <= F_TAU;
+        //converged = thrust::count_if(thrust::device, d_error, d_error + DIM, is_over_error()) == 0;
+        converged = error_euc <= F_TAU;*/
         iterations++;
 
     }
@@ -431,40 +501,41 @@ int main() {
 
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(pr_clock_end - pr_clock_start).count();
 
-    if(DEBUG){
+    if (DEBUG) {
         std::cout << "Pagerank converged after " << duration << " ms" << std::endl;
     }
 
     cudaMemcpy(pr, d_pr, DIM * sizeof(num_type), cudaMemcpyDeviceToHost);
 
-    if(DEBUG) {
+    if (DEBUG) {
         std::cout << "Pagerank converged after " << iterations << " iterations" << std::endl;
+    }
+
+    std::map<int, num_type> pr_map;
+    std::vector<std::pair<int, num_type>> sorted_pr;
+    std::vector<int> sorted_pr_idxs;
+
+    for (int i = 0; i < DIM; ++i) {
+        sorted_pr.push_back({i, pr[i]});
+        pr_map[i] = pr[i];
+    }
 
 
-        std::map<int, num_type> pr_map;
-        std::vector<std::pair<int, num_type>> sorted_pr;
-        std::vector<int> sorted_pr_idxs;
+    std::sort(sorted_pr.begin(), sorted_pr.end(),
+              [](const std::pair<int, num_type> &l, const std::pair<int, num_type> &r) {
+                  if (l.second != r.second)return l.second > r.second;
+                  else return l.first > r.first;
+              });
 
-        for (int i = 0; i < DIM; ++i) {
-            sorted_pr.push_back({i, pr[i]});
-            pr_map[i] = pr[i];
-        }
-
-
-        std::sort(sorted_pr.begin(), sorted_pr.end(),
-                  [](const std::pair<int, num_type> &l, const std::pair<int, num_type> &r) {
-                      if (l.second != r.second)return l.second > r.second;
-                      else return l.first > r.first;
-                  });
-
-        for (auto const &pair: sorted_pr) {
-            sorted_pr_idxs.push_back(pair.first);
-        }
-
+    for (auto const &pair: sorted_pr) {
+        sorted_pr_idxs.push_back(pair.first);
+        //std::cout << pair.first << "," << pair.second << std::endl;
+    }
+    if (DEBUG) {
         std::cout << "Checking results..." << std::endl;
 
         std::ifstream results;
-        results.open("/home/fra/University/HPPS/Approximate-PR/new_ds/scf/results.txt");
+        results.open("/home/fra/University/HPPS/Approximate-PR/new_ds/" + GRAPH_TYPE + "/results.txt");
 
         int i = 0;
         int tmp = 0;
@@ -475,7 +546,6 @@ int main() {
 
         while (results >> tmp) {
             if (tmp != sorted_pr_idxs[i]) {
-
                 if (prev_left_idx != sorted_pr_idxs[i] || prev_right_idx != tmp) {
                     errors++;
                     if (errors <= 10) {
@@ -497,9 +567,15 @@ int main() {
         std::cout << "End of computation! Freeing memory..." << std::endl;
     }
 
-    if(PYTHON_CONVERGENCE_ERROR_OUT){
+    if (PYTHON_CONVERGENCE_ERROR_OUT) {
         for (int i = 0; i < iterations; ++i) {
             std::cout << "(" << i << "," << convergence_error_vector[i] << ")" << std::endl;
+        }
+    }
+
+    if (PYTHON_PAGERANK_VALUES) {
+        for (auto const &pair: sorted_pr) {
+            std::cout << pair.first << "," << pair.second << std::endl;
         }
     }
 

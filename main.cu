@@ -27,8 +27,16 @@
 
 #define MAX_ITER 200
 
-#define num_type float
-#define DEBUG false
+#define num_type double
+
+#define DEBUG true
+
+#define USE_NO_OPTIMIZATION false
+#define USE_L2_NORM true
+#define USE_L2_NORM_BITMASK false
+#define GRAPH_TYPE ((std::string) "gnp")
+
+#define PYTHON_PAGERANK_VALUES false
 #define PYTHON_CONVERGENCE_ERROR_OUT false
 
 template<typename T>
@@ -300,7 +308,7 @@ int main() {
     bool *d_dangling_bitmap;
     bool *d_update_bitmap;
 
-    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/new_ds/smw", DEBUG);
+    csc_t csc_matrix = parse_dir("/home/fra/University/HPPS/Approximate-PR/new_ds/" + GRAPH_TYPE, DEBUG);
 
     const unsigned NON_ZERO = csc_matrix.val.size();
     const unsigned DIM = csc_matrix.non_zero.size() - 1;
@@ -364,8 +372,88 @@ int main() {
 
     while (!converged && iterations < MAX_ITER) {
 
-        //spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
-        part_spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
+        if(USE_NO_OPTIMIZATION){
+            // SpMV
+            spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
+            // Dangling nodes handler
+            num_type res_v = dot(DIM, d_pr, d_dangling_bitmap);
+            // aX + b
+
+            axpb <<< MAX_B, MAX_T >>> (
+                    d_spmv_res,
+                            (num_type) ALPHA,
+                            static_cast<num_type>((1.0 - ALPHA) / DIM + (ALPHA / DIM) * res_v),
+                            DIM
+            );
+
+            // Compute error
+            compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
+
+            // Swap back the pagerank values
+            cudaMemcpy(d_pr, d_spmv_res, DIM * sizeof(num_type), cudaMemcpyDeviceToDevice);
+
+            // Check for convergence
+            converged = thrust::count_if(thrust::device, d_error, d_error + DIM, is_over_error()) == 0;
+        }
+
+        if(USE_L2_NORM){
+            // SpMV
+            spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
+            // Dangling nodes handler
+            num_type res_v = dot(DIM, d_pr, d_dangling_bitmap);
+            // aX + b
+
+            axpb <<< MAX_B, MAX_T >>> (
+                    d_spmv_res,
+                            (num_type) ALPHA,
+                            static_cast<num_type>((1.0 - ALPHA) / DIM + (ALPHA / DIM) * res_v),
+                            DIM
+            );
+
+            // Compute error
+            compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
+
+            // Compute the l2 norm
+            num_type error_euc = euclidean_error(d_error, DIM);
+            convergence_error_vector[iterations] = error_euc;
+
+            // Swap back the pagerank values
+            cudaMemcpy(d_pr, d_spmv_res, DIM * sizeof(num_type), cudaMemcpyDeviceToDevice);
+
+            // Check for convergence
+            converged = error_euc <= TAU;
+        }
+
+        if(USE_L2_NORM_BITMASK){
+            // SpMV
+            part_spmv<< <MAX_B, MAX_T>> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
+            // Dangling nodes handler
+            num_type res_v = dot(DIM, d_pr, d_dangling_bitmap);
+            // aX + b
+
+            axpb <<< MAX_B, MAX_T >>> (
+                    d_spmv_res,
+                            (num_type) ALPHA,
+                            static_cast<num_type>((1.0 - ALPHA) / DIM + (ALPHA / DIM) * res_v),
+                            DIM
+            );
+
+            // Compute error and bitmask
+            part_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, d_update_bitmap, DIM);
+
+            // Compute the l2 norm
+            num_type error_euc = euclidean_error(d_error, DIM);
+            // convergence_error_vector[iterations] = error_euc;
+
+            // Swap back the pagerank values
+            cudaMemcpy(d_pr, d_spmv_res, DIM * sizeof(num_type), cudaMemcpyDeviceToDevice);
+
+            // Check for convergence
+            converged = error_euc <= TAU;
+        }
+        /*
+        spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, DIM);
+        //part_spmv << < MAX_B, MAX_T >> > (d_spmv_res, d_pr, d_csc_val, d_csc_non_zero, d_csc_col_idx, d_update_bitmap, DIM);
 
         num_type res_v = dot(DIM, d_dangling_bitmap, d_pr);
 
@@ -377,18 +465,18 @@ int main() {
         );
 
         //num_type euclidean_error = euclidean_dist(DIM, d_error, d_pr);
-        //std::cout << euclidean_error << std::endl;
-        //compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
-        part_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, d_update_bitmap, DIM);
+        compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, DIM);
+        //part_compute_error << < MAX_B, MAX_T >> > (d_error, d_spmv_res, d_pr, d_update_bitmap, DIM);
 
         num_type error_euc = euclidean_error(d_error, DIM);
-        //convergence_error_vector[iterations] = error_euc;
+        convergence_error_vector[iterations] = error_euc;
         //std::cout << "Convergence error[" << iterations << "]: " << error_euc << std::endl;
 
         cudaMemcpy(d_pr, d_spmv_res, DIM * sizeof(num_type), cudaMemcpyDeviceToDevice);
 
         //converged = thrust::count_if(thrust::device, d_error, d_error + DIM, is_over_error()) == 0;
         converged = error_euc <= TAU;
+        */
         iterations++;
     }
 
@@ -433,7 +521,7 @@ int main() {
         std::cout << "Checking results..." << std::endl;
 
         std::ifstream results;
-        results.open("/home/fra/University/HPPS/Approximate-PR/new_ds/smw/results.txt");
+        results.open("/home/fra/University/HPPS/Approximate-PR/new_ds/" + GRAPH_TYPE + "/results.txt");
 
         int i = 0;
         int tmp = 0;
@@ -475,6 +563,12 @@ int main() {
     if (PYTHON_CONVERGENCE_ERROR_OUT) {
         for (int i = 0; i < iterations; ++i) {
             std::cout << "(" << i << "," << convergence_error_vector[i] << ")" << std::endl;
+        }
+    }
+
+    if (PYTHON_PAGERANK_VALUES) {
+        for (auto const &pair: sorted_pr) {
+            std::cout << pair.first << "," << pair.second << std::endl;
         }
     }
 

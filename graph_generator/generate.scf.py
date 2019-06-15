@@ -51,7 +51,7 @@ def format_file(filename, values):
         f.write('{}\n'.format(e))
 
 
-DIM = 2*10**6
+DIM = 10**5
 
 write_log("Generating graph...", endl='')
 start = time()
@@ -84,7 +84,7 @@ write_log("DONE [{:.10f}]s".format(time() - start))
 ####################COMPUTING PAGERANK#########################
 write_log("Computing pagerank", endl='')
 start = time()
-pr = nx.pagerank(g, alpha=0.85, max_iter=200, tol=10**-12)
+pr = nx.pagerank_scipy(g, alpha=0.85, max_iter=200, tol=10**-12)
 
 write_log("DONE [{:.10f}]s".format(time() - start))
 

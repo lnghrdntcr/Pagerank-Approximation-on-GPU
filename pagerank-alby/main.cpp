@@ -13,8 +13,8 @@
 #include "sample_graph.hpp"
 #include "utils.hpp"
 
-#define DEBUG true 
-#define num_type double
+#define DEBUG false
+#define num_type double 
 ////////////////////////////////
 ////////////////////////////////
 
@@ -31,7 +31,7 @@ int main(int argc, char *argv[]) {
     string csc_indices_file  = "/home/fra/University/HPPS/Approximate-PR/new_ds/scf/col_idx.txt";
 
     int max_iter = 200;
-    num_type min_norm_error = 1e-6;
+    num_type min_norm_error = 0.0;
     num_type dangling_factor = 0.85f;
 
     bool use_cpu_gpu_async = false;
@@ -211,6 +211,7 @@ int main(int argc, char *argv[]) {
 
     for (auto const &pair: sorted_pr) {
         sorted_pr_idxs.push_back(pair.first);
+//        std::cout << pair.first << std::endl;
     }
 
     if (DEBUG) {

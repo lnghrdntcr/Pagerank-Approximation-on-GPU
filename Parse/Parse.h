@@ -9,7 +9,7 @@
 
 #include <iostream>
 #include <vector>
-#define num_type float
+#define num_type double
 #define fixed_num_type long long unsigned
 
 typedef struct csc_t {

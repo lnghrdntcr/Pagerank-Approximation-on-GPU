@@ -105,6 +105,7 @@ int pagerank(
     for (int i = 0; i < e; i++) {
         csc_val_mng[i] /= outdegree[csc_ind[i]]; // Divide each edge weight by the outdegree of its source vertex;
         dangling_bitmap[csc_ind[i]] = 0;         // Vertices with at least outdegree = 1 are not dangling;
+        //std::cout << csc_val_mng[i] << std::endl;
     }
 
     auto end_pr_preprocessing = clock_type::now();

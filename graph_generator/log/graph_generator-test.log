@@ -1407,3 +1407,18 @@ Generating graph...
 DIM = 2000000
 PERC_SPARSE = 99.9997% => expecting 6.0 elements per column
 Generating graph...
+DIM = 100000
+PERC_SPARSE = 99.9997% => expecting 0.3 elements per column
+Generating graph...
+1560512107.9153953: Computing pagerank... alpha=0.85, max_iter=200, tol=1e-12 DIM = 100000
+PERC_SPARSE = 99.9997% => expecting 0.3 elements per column
+Generating graph...
+1560512128.1315417: Computing pagerank... alpha=0.85, max_iter=200, tol=1e-12 DONE [0.2516181468963623s]
+1560512128.3834372: Sorting and dumping pr values... DONE [0.13867759704589844s]
+1560512128.5222843: Formatting matrix in stochastic form... DONE [0.4269602298736572s]
+1560512128.9494824: Converting matrix in csc DONE [0.12907147407531738s]
+Dumping matrices: 
+Formatting generated_csc/test/val.txt
+Formatting generated_csc/test/col_idx.txt
+Formatting generated_csc/test/non_zero.txt
+DONE [0.1744387149810791s]
