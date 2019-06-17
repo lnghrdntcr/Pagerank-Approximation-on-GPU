@@ -25,14 +25,14 @@
 #define MAX_B 1024
 #define MAX_T 1024
 
-#define DEBUG true
+#define DEBUG false
 
-#define USE_NO_OPTIMIZATION false
-#define USE_L2_NORM true
+#define USE_NO_OPTIMIZATION true
+#define USE_L2_NORM false
 #define USE_L2_NORM_BITMASK false
-#define GRAPH_TYPE ((std::string) "scf")
+#define GRAPH_TYPE ((std::string) "gnp")
 
-#define PYTHON_PAGERANK_VALUES false
+#define PYTHON_PAGERANK_VALUES false 
 #define PYTHON_CONVERGENCE_ERROR_OUT false
 
 #define MAX_ITER 200

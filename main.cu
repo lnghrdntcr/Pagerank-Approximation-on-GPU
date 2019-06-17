@@ -27,12 +27,12 @@
 
 #define MAX_ITER 200
 
-#define num_type double
+#define num_type float
 
 #define DEBUG true
 
-#define USE_NO_OPTIMIZATION false
-#define USE_L2_NORM true
+#define USE_NO_OPTIMIZATION true
+#define USE_L2_NORM false
 #define USE_L2_NORM_BITMASK false
 #define GRAPH_TYPE ((std::string) "gnp")
 
