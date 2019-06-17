@@ -26,9 +26,9 @@ using std::vector;
 int main(int argc, char *argv[]) {
     // Input variables, with default values;
     string default_graph_type = "full_undirected";
-    string csc_data_file = "/home/fra/University/HPPS/Approximate-PR/new_ds/scf/val.txt";
-    string csc_ptr_file= "/home/fra/University/HPPS/Approximate-PR/new_ds/scf/non_zero.txt";
-    string csc_indices_file  = "/home/fra/University/HPPS/Approximate-PR/new_ds/scf/col_idx.txt";
+    string csc_data_file = "/home/fra/University/HPPS/Approximate-PR/new_ds/smw/val.txt";
+    string csc_ptr_file= "/home/fra/University/HPPS/Approximate-PR/new_ds/smw/non_zero.txt";
+    string csc_indices_file  = "/home/fra/University/HPPS/Approximate-PR/new_ds/smw/col_idx.txt";
 
     int max_iter = 200;
     num_type min_norm_error = 0.0;
@@ -211,14 +211,14 @@ int main(int argc, char *argv[]) {
 
     for (auto const &pair: sorted_pr) {
         sorted_pr_idxs.push_back(pair.first);
-//        std::cout << pair.first << std::endl;
+        std::cout << pair.first << std::endl;
     }
 
     if (DEBUG) {
         std::cout << "Checking results..." << std::endl;
 
         std::ifstream results;
-        results.open("/home/fra/University/HPPS/Approximate-PR/new_ds/scf/results.txt");
+        results.open("/home/fra/University/HPPS/Approximate-PR/new_ds/smw/results.txt");
 
         int i = 0;
         int tmp = 0;

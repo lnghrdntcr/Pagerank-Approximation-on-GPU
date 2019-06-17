@@ -34,7 +34,7 @@
 #define USE_NO_OPTIMIZATION true
 #define USE_L2_NORM false
 #define USE_L2_NORM_BITMASK false
-#define GRAPH_TYPE ((std::string) "gnp")
+#define GRAPH_TYPE ((std::string) "smw")
 
 #define PYTHON_PAGERANK_VALUES false
 #define PYTHON_CONVERGENCE_ERROR_OUT false
